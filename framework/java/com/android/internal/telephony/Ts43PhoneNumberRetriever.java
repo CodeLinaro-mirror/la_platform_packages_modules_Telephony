@@ -167,7 +167,7 @@ public class Ts43PhoneNumberRetriever {
         } catch (ServiceEntitlementException e) {
             Rlogger.w(TAG, "Propagating ServiceEntitlementException." + e.getErrorCode());
             throw e;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Rlogger.e(TAG, "An unexpected exception occurred during phone number retrieval." + e);
             return null;
         }
