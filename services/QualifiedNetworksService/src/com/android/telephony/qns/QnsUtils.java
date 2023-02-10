@@ -590,6 +590,8 @@ class QnsUtils {
             case QnsCarrierConfigManager
                     .KEY_IN_CALL_HO_DECISION_WLAN_TO_WWAN_WITHOUT_VOPS_CONDITION_BOOL:
                 return (T) Boolean.valueOf(false);
+            case QnsCarrierConfigManager.KEY_SIP_DIALOG_SESSION_POLICY_INT:
+                return (T) Integer.valueOf(QnsConstants.SIP_DIALOG_SESSION_POLICY_NONE);
             case QnsCarrierConfigManager.KEY_QNS_CELLULAR_SS_THRESHOLDBACKHAUL_TIMER_MS_INT:
                 return (T) Integer.valueOf(QnsConstants.KEY_DEFAULT_VALUE);
             case QnsCarrierConfigManager.KEY_QNS_WIFI_RSSI_THRESHOLDBACKHAUL_TIMER_MS_INT:
@@ -706,11 +708,6 @@ class QnsUtils {
                 return (T) "";
             case QnsCarrierConfigManager
                     .KEY_QNS_FALLBACK_ON_INITIAL_CONNECTION_FAILURE_STRING_ARRAY:
-            case QnsCarrierConfigManager
-                    .KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY:
-            case QnsCarrierConfigManager
-                    .KEY_PLMN_LIST_REGARDED_AS_INTERNATIONAL_ROAMING_STRING_ARRAY:
-            case QnsCarrierConfigManager.KEY_PLMN_LIST_REGARDED_AS_DOMESTIC_ROAMING_STRING_ARRAY:
                 return (T) new String[] {};
             default:
                 break;
