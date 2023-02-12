@@ -16,6 +16,7 @@
 
 package com.android.telephony.qns;
 
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -23,7 +24,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.location.Country;
@@ -31,18 +31,23 @@ import android.location.CountryDetector;
 import android.net.ConnectivityManager;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsManager;
 import android.telephony.ims.ImsMmTelManager;
+import android.telephony.ims.ImsRcsManager;
+import android.telephony.ims.SipDelegateManager;
 
 import androidx.test.core.app.ApplicationProvider;
 
 import org.mockito.Mock;
 
 import java.lang.reflect.Field;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public abstract class QnsTest {
     private static final long MAX_WAIT_TIME_MS = 10000;
@@ -55,10 +60,10 @@ public abstract class QnsTest {
     @Mock protected SubscriptionManager mMockSubscriptionManager;
     @Mock protected WifiManager mMockWifiManager;
     @Mock protected CountryDetector mMockCountryDetector;
-    @Mock protected SharedPreferences mMockSharedPreferences;
-    @Mock protected SharedPreferences.Editor mMockSharedPreferencesEditor;
 
     @Mock protected ImsMmTelManager mMockImsMmTelManager;
+    @Mock protected ImsRcsManager mMockImsRcsManager;
+    @Mock protected SipDelegateManager mMockSipDelegateManager;
     @Mock protected SubscriptionInfo mMockSubscriptionInfo;
     @Mock protected WifiInfo mMockWifiInfo;
     @Mock protected Resources mMockResources;
@@ -130,8 +135,6 @@ public abstract class QnsTest {
     private void stubContext() {
         when(sMockContext.getSystemService(TelephonyManager.class))
                 .thenReturn(mMockTelephonyManager);
-        when(sMockContext.getSystemService(TelephonyManager.class))
-                .thenReturn(mMockTelephonyManager);
         when(sMockContext.getSystemService(SubscriptionManager.class))
                 .thenReturn(mMockSubscriptionManager);
         when(sMockContext.getSystemService(CarrierConfigManager.class))
@@ -141,8 +144,6 @@ public abstract class QnsTest {
         when(sMockContext.getSystemService(ImsManager.class)).thenReturn(mMockImsManager);
         when(sMockContext.getSystemService(WifiManager.class)).thenReturn(mMockWifiManager);
         when(sMockContext.getSystemService(CountryDetector.class)).thenReturn(mMockCountryDetector);
-        when(sMockContext.getSharedPreferences(anyString(), anyInt()))
-                .thenReturn(mMockSharedPreferences);
 
         when(sMockContext.getResources()).thenReturn(mMockResources);
     }
@@ -153,6 +154,8 @@ public abstract class QnsTest {
         when(mMockTelephonyManager.getSimCarrierId()).thenReturn(0);
         when(mMockTelephonyManager.getSimCountryIso()).thenReturn("ca");
         when(mMockImsManager.getImsMmTelManager(anyInt())).thenReturn(mMockImsMmTelManager);
+        when(mMockImsManager.getImsRcsManager(anyInt())).thenReturn(mMockImsRcsManager);
+        when(mMockImsManager.getSipDelegateManager(anyInt())).thenReturn(mMockSipDelegateManager);
         when(mMockSubscriptionManager.getActiveSubscriptionInfo(anyInt()))
                 .thenReturn(mMockSubscriptionInfo);
         when(mMockSubscriptionManager.getActiveSubscriptionInfoForSimSlotIndex(anyInt()))
@@ -162,7 +165,6 @@ public abstract class QnsTest {
 
         when(mMockCountryDetector.detectCountry())
                 .thenReturn(new Country("US", Country.COUNTRY_SOURCE_LOCATION));
-        when(mMockSharedPreferences.edit()).thenReturn(mMockSharedPreferencesEditor);
     }
 
     private void stubOthers() {
@@ -188,11 +190,38 @@ public abstract class QnsTest {
         }
     }
 
-    protected void waitFor(int waitTimeMillis) {
-        synchronized (mLock) {
+    /** Wait for up to 2 second for the handler message queue to clear. */
+    protected final void waitForLastHandlerAction(Handler h) {
+        CountDownLatch lock = new CountDownLatch(1);
+        // Allow the handler to start work on stuff.
+        h.postDelayed(lock::countDown, 100);
+        int timeoutCount = 0;
+        while (timeoutCount < 10) {
             try {
-                mLock.wait(waitTimeMillis);
+                if (lock.await(200, TimeUnit.MILLISECONDS)) {
+                    // no messages in queue, stop waiting.
+                    if (!h.hasMessagesOrCallbacks()) break;
+                    lock = new CountDownLatch(1);
+                    // Delay allowing the handler thread to start work on stuff.
+                    h.postDelayed(lock::countDown, 100);
+                }
             } catch (InterruptedException e) {
+                // do nothing
+            }
+            timeoutCount++;
+        }
+        assertTrue("Handler was not empty before timeout elapsed", timeoutCount < 10);
+    }
+
+    protected final void waitForDelayedHandlerAction(
+            Handler h, long delayMillis, long timeoutMillis) {
+        final CountDownLatch lock = new CountDownLatch(1);
+        h.postDelayed(lock::countDown, delayMillis);
+        while (lock.getCount() > 0) {
+            try {
+                lock.await(delayMillis + timeoutMillis, TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                // do nothing
             }
         }
     }

@@ -329,6 +329,14 @@ public class QnsUtilsTest extends QnsTest {
                 QnsUtils.getConfig(
                         mTestBundle, null, QnsCarrierConfigManager.KEY_BLOCK_IPV6_ONLY_WIFI_BOOL));
         assertEquals(
+                QnsConstants.SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL,
+                (int)
+                        QnsUtils.getConfig(
+                                mTestBundle,
+                                null,
+                                QnsCarrierConfigManager
+                                        .KEY_QNS_CELLULAR_SS_THRESHOLDBACKHAUL_TIMER_MS_INT));
+        assertEquals(
                 1,
                 (int)
                         QnsUtils.getConfig(
@@ -518,27 +526,6 @@ public class QnsUtilsTest extends QnsTest {
                         QnsCarrierConfigManager
                                 .KEY_QNS_FALLBACK_WWAN_IMS_HO_REGISTER_FAIL_REASON_STRING_ARRAY));
         assertArrayEquals(
-                apnTypesForInternationalRoamingCheck,
-                QnsUtils.getConfig(
-                        mTestBundle,
-                        null,
-                        QnsCarrierConfigManager
-                                .KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY));
-        assertArrayEquals(
-                plmnsToBeInternationalRoaming,
-                QnsUtils.getConfig(
-                        mTestBundle,
-                        null,
-                        QnsCarrierConfigManager
-                                .KEY_PLMN_LIST_REGARDED_AS_INTERNATIONAL_ROAMING_STRING_ARRAY));
-        assertArrayEquals(
-                plmnsToBeDomesticRoaming,
-                QnsUtils.getConfig(
-                        mTestBundle,
-                        null,
-                        QnsCarrierConfigManager
-                                .KEY_PLMN_LIST_REGARDED_AS_DOMESTIC_ROAMING_STRING_ARRAY));
-        assertArrayEquals(
                 defaultFallbackConfigInitialDataConnection,
                 QnsUtils.getConfig(
                         mTestBundle,
@@ -580,6 +567,9 @@ public class QnsUtilsTest extends QnsTest {
                 QnsCarrierConfigManager.KEY_BLOCK_IWLAN_IN_INTERNATIONAL_ROAMING_WITHOUT_WWAN_BOOL,
                 false);
         mTestBundle.putBoolean(QnsCarrierConfigManager.KEY_BLOCK_IPV6_ONLY_WIFI_BOOL, false);
+        mTestBundle.putInt(
+                QnsCarrierConfigManager.KEY_SIP_DIALOG_SESSION_POLICY_INT,
+                QnsConstants.SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL);
         mTestBundle.putInt(
                 QnsCarrierConfigManager.KEY_QNS_CELLULAR_SS_THRESHOLDBACKHAUL_TIMER_MS_INT, 1);
         mTestBundle.putInt(
@@ -651,17 +641,6 @@ public class QnsUtilsTest extends QnsTest {
                         .KEY_QNS_FALLBACK_WWAN_IMS_HO_REGISTER_FAIL_REASON_STRING_ARRAY,
                 new String[] {FALLBACK_RULE1, FALLBACK_RULE0});
         mTestBundle.putStringArray(
-                QnsCarrierConfigManager
-                        .KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY,
-                new String[] {"ims", "emergency"});
-        mTestBundle.putStringArray(
-                QnsCarrierConfigManager
-                        .KEY_PLMN_LIST_REGARDED_AS_INTERNATIONAL_ROAMING_STRING_ARRAY,
-                new String[] {"313200", "233", "37809"});
-        mTestBundle.putStringArray(
-                QnsCarrierConfigManager.KEY_PLMN_LIST_REGARDED_AS_DOMESTIC_ROAMING_STRING_ARRAY,
-                new String[] {"313200", "233", "37707"});
-        mTestBundle.putStringArray(
                 QnsCarrierConfigManager.KEY_QNS_FALLBACK_ON_INITIAL_CONNECTION_FAILURE_STRING_ARRAY,
                 new String[] {"ims:2:30000:60000:5", "mms:1:10000:5000:2"});
     }
@@ -730,6 +709,14 @@ public class QnsUtilsTest extends QnsTest {
         assertTrue(
                 QnsUtils.getConfig(
                         null, null, QnsCarrierConfigManager.KEY_BLOCK_IPV6_ONLY_WIFI_BOOL));
+        assertEquals(
+                QnsConstants.SIP_DIALOG_SESSION_POLICY_NONE,
+                (int)
+                        QnsUtils.getConfig(
+                                null,
+                                null,
+                                QnsCarrierConfigManager
+                                        .KEY_SIP_DIALOG_SESSION_POLICY_INT));
         assertEquals(
                 QnsConstants.KEY_DEFAULT_VALUE,
                 (int)
