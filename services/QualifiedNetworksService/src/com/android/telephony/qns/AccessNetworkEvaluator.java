@@ -83,6 +83,7 @@ class AccessNetworkEvaluator {
     protected DataConnectionStatusTracker mDataConnectionStatusTracker;
     protected QnsEventDispatcher mQnsEventDispatcher;
     protected AlternativeEventListener mAltEventListener;
+    protected QnsCallStatusTracker mCallStatusTracker;
     protected QnsProvisioningListener mQnsProvisioningListener;
     protected QnsImsManager mQnsImsManager;
     protected WifiBackhaulMonitor mWifiBackhaulMonitor;
@@ -139,6 +140,7 @@ class AccessNetworkEvaluator {
 
         mConfigManager = mQnsComponents.getQnsCarrierConfigManager(mSlotIndex);
         mAltEventListener = mQnsComponents.getAlternativeEventListener(mSlotIndex);
+        mCallStatusTracker = mQnsComponents.getQnsCallStatusTracker(mSlotIndex);
         mQnsProvisioningListener = mQnsComponents.getQnsProvisioningListener(mSlotIndex);
         mIwlanNetworkStatusTracker = mQnsComponents.getIwlanNetworkStatusTracker();
         mDataConnectionStatusTracker =
@@ -203,6 +205,7 @@ class AccessNetworkEvaluator {
         mDataConnectionStatusTracker = dataConnectionStatusTracker;
         mQnsEventDispatcher = mQnsComponents.getQnsEventDispatcher(mSlotIndex);
         mAltEventListener = mQnsComponents.getAlternativeEventListener(mSlotIndex);
+        mCallStatusTracker = mQnsComponents.getQnsCallStatusTracker(mSlotIndex);
         mQnsProvisioningListener = mQnsComponents.getQnsProvisioningListener(mSlotIndex);
         mQnsImsManager = mQnsComponents.getQnsImsManager(mSlotIndex);
         mWifiBackhaulMonitor = mQnsComponents.getWifiBackhaulMonitor(mSlotIndex);
@@ -359,7 +362,7 @@ class AccessNetworkEvaluator {
                 mNetCapability, mHandler, EVENT_QNS_TELEPHONY_INFO_CHANGED);
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS
                 || mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
-            mAltEventListener.registerCallTypeChangedListener(
+            mCallStatusTracker.registerCallTypeChangedListener(
                     mNetCapability, mHandler, EVENT_SET_CALL_TYPE, null);
         }
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
@@ -390,6 +393,8 @@ class AccessNetworkEvaluator {
         events.add(QnsEventDispatcher.QNS_EVENT_WFC_PLATFORM_ENABLED);
         events.add(QnsEventDispatcher.QNS_EVENT_WFC_PLATFORM_DISABLED);
         events.add(QnsEventDispatcher.QNS_EVENT_SIM_ABSENT);
+        events.add(QnsEventDispatcher.QNS_EVENT_TRY_WFC_ACTIVATION);
+        events.add(QnsEventDispatcher.QNS_EVENT_CANCEL_TRY_WFC_ACTIVATION);
         mQnsEventDispatcher.registerEvent(events, mHandler);
         mRestrictManager.registerRestrictInfoChanged(mHandler, EVENT_RESTRICT_INFO_CHANGED);
     }
@@ -404,7 +409,7 @@ class AccessNetworkEvaluator {
         mIwlanNetworkStatusTracker.unregisterIwlanNetworksChanged(mSlotIndex, mHandler);
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS
                 || mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
-            mAltEventListener.unregisterCallTypeChangedListener(mNetCapability, mHandler);
+            mCallStatusTracker.unregisterCallTypeChangedListener(mNetCapability, mHandler);
             if (mWifiBackhaulMonitor.isRttCheckEnabled()) {
                 mWifiBackhaulMonitor.unRegisterForRttStatusChange(mHandler);
             }
@@ -656,8 +661,17 @@ class AccessNetworkEvaluator {
     @VisibleForTesting
     void onTryWfcConnectionStateChanged(boolean isEnabled) {
         log("onTryWfcConnectionStateChanged enabled:" + isEnabled);
+        int timeout = mConfigManager.getVowifiRegistrationTimerForVowifiActivation();
+
         if (mAllowIwlanForWfcActivation == isEnabled) {
             return;
+        }
+        if (isEnabled) {
+            mHandler.sendEmptyMessageDelayed(
+                    QnsEventDispatcher.QNS_EVENT_CANCEL_TRY_WFC_ACTIVATION,
+                    timeout + /* milliseconds */3000);
+        } else {
+            mHandler.removeMessages(QnsEventDispatcher.QNS_EVENT_CANCEL_TRY_WFC_ACTIVATION);
         }
         mAllowIwlanForWfcActivation = isEnabled;
         evaluate();
@@ -712,10 +726,6 @@ class AccessNetworkEvaluator {
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_DISCONNECTED:
                 needEvaluate = true;
                 initLastNotifiedQualifiedNetwork();
-                if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
-                    if (mAltEventListener != null) mAltEventListener.clearNormalCallInfo();
-                }
-                mCallType = QnsConstants.CALL_TYPE_IDLE;
                 break;
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_CONNECTED:
                 mHandler.post(() -> onDataConnectionConnected(info.getTransportType()));
@@ -1919,6 +1929,12 @@ class AccessNetworkEvaluator {
                     break;
                 case EVENT_WIFI_RTT_STATUS_CHANGED:
                     onRttStatusChanged((boolean) ar.mResult);
+                    break;
+                case QnsEventDispatcher.QNS_EVENT_TRY_WFC_ACTIVATION:
+                    onTryWfcConnectionStateChanged(true);
+                    break;
+                case QnsEventDispatcher.QNS_EVENT_CANCEL_TRY_WFC_ACTIVATION:
+                    onTryWfcConnectionStateChanged(false);
                     break;
                 default:
                     log("never reach here msg=" + message.what);
