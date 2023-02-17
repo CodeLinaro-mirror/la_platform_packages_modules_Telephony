@@ -79,8 +79,9 @@ class IwlanNetworkStatusTracker {
 
     // The current active data subscription. May not be the default data subscription.
     private int mConnectedDataSub = INVALID_SUB_ID;
-    private SparseArray<IwlanEventHandler> mHandlerSparseArray = new SparseArray<>();
-    private SparseArray<IwlanAvailabilityInfo> mLastIwlanAvailabilityInfo = new SparseArray<>();
+    @VisibleForTesting SparseArray<IwlanEventHandler> mHandlerSparseArray = new SparseArray<>();
+    @VisibleForTesting SparseArray<IwlanAvailabilityInfo> mLastIwlanAvailabilityInfo =
+            new SparseArray<>();
     private CountryDetector mCountryDetector;
 
     enum LinkProtocolType {
@@ -286,7 +287,15 @@ class IwlanNetworkStatusTracker {
             mIwlanNetworkListenersArray.get(slotId).add(r);
             IwlanEventHandler handler = mHandlerSparseArray.get(slotId);
             if (handler != null) {
-                handler.post(() -> notifyIwlanNetworkStatusToRegister(slotId, r));
+                IwlanAvailabilityInfo lastInfo = mLastIwlanAvailabilityInfo.get(slotId);
+                IwlanAvailabilityInfo newInfo = makeIwlanAvailabilityInfo(slotId);
+                if (lastInfo == null || !lastInfo.equals(newInfo)) {
+                    // if the LastIwlanAvailabilityInfo is no more valid, notify to all registrants.
+                    handler.post(() -> notifyIwlanNetworkStatus());
+                } else {
+                    // if the LastIwlanAvailabilityInfo is valid, notify to only this registrant.
+                    handler.post(() -> notifyIwlanNetworkStatusToRegister(slotId, r));
+                }
             }
         }
     }
@@ -302,7 +311,7 @@ class IwlanNetworkStatusTracker {
         boolean isCrossWfc = false;
         boolean isRegistered = false;
         boolean isBlockIpv6OnlyWifi = false;
-        if (mQnsImsManagers.contains(slotId)) {
+        if (mQnsConfigManagers.contains(slotId)) {
             isBlockIpv6OnlyWifi = mQnsConfigManagers.get(slotId).blockIpv6OnlyWifi();
         }
         LinkProtocolType linkProtocolType = sLinkProtocolType;
@@ -385,11 +394,11 @@ class IwlanNetworkStatusTracker {
         Log.d(sLogTag, "notifyIwlanNetworkStatus for slot: " + slotId);
         IwlanAvailabilityInfo info = makeIwlanAvailabilityInfo(slotId);
         if (!info.getIwlanAvailable() && notifyIwlanDisabled) {
-            Log.d(sLogTag, "setNotifyIwlanDisabled");
+            Log.d(sLogTag, "setNotifyIwlanDisabled for slot: " + slotId);
             info.setNotifyIwlanDisabled();
         }
         if (!info.equals(mLastIwlanAvailabilityInfo.get(slotId))) {
-            Log.d(sLogTag, "notify updated info");
+            Log.d(sLogTag, "notify updated info for slot: " + slotId);
             if (mIwlanNetworkListenersArray.get(slotId) != null) {
                 mIwlanNetworkListenersArray.get(slotId).notifyResult(info);
             }

@@ -57,18 +57,18 @@ class AccessNetworkEvaluator {
     private static final int EVENT_RESTRICT_INFO_CHANGED = EVENT_BASE + 4;
     private static final int EVENT_SET_CALL_TYPE = EVENT_BASE + 5;
     private static final int EVENT_DATA_CONNECTION_STATE_CHANGED = EVENT_BASE + 6;
-    private static final int EVENT_EMERGENCY_PREFERRED_TRANSPORT_TYPE_CHANGED = EVENT_BASE + 7;
     private static final int EVENT_PROVISIONING_INFO_CHANGED = EVENT_BASE + 8;
-    private static final int EVENT_WFC_ACTIVATION_WITH_IWLAN_CONNECTION_REQUIRED = EVENT_BASE + 9;
     private static final int EVENT_IMS_REGISTRATION_STATE_CHANGED = EVENT_BASE + 10;
     private static final int EVENT_WIFI_RTT_STATUS_CHANGED = EVENT_BASE + 11;
+    private static final int EVENT_SIP_DIALOG_SESSION_STATE_CHANGED = EVENT_BASE + 12;
     private static final int EVALUATE_SPECIFIC_REASON_NONE = 0;
     private static final int EVALUATE_SPECIFIC_REASON_IWLAN_DISABLE = 1;
     protected final int mSlotIndex;
     protected final Context mContext;
     private final String mLogTag;
     private final int mNetCapability;
-    @VisibleForTesting protected final Handler mHandler;
+    @VisibleForTesting
+    protected final Handler mHandler;
     private final HandlerThread mHandlerThread;
     private final RestrictManager mRestrictManager;
     protected QnsCarrierConfigManager mConfigManager;
@@ -110,6 +110,9 @@ class AccessNetworkEvaluator {
     private boolean mIsRttCheckSuccess = false;
     private QnsProvisioningListener.QnsProvisioningInfo mLastProvisioningInfo =
             new QnsProvisioningListener.QnsProvisioningInfo();
+    private boolean mSipDialogSessionState = false;
+    private int mCachedTransportTypeForEmergencyInitialConnect =
+            AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
 
     AccessNetworkEvaluator(QnsComponents qnsComponents, int netCapability, int slotIndex) {
         mNetCapability = netCapability;
@@ -330,6 +333,9 @@ class AccessNetworkEvaluator {
                 QnsUtils.isWfcEnabled(mQnsImsManager, mQnsProvisioningListener, true);
         mSettingWfcRoamingMode = QnsUtils.getWfcMode(mQnsImsManager, true);
         mAllowIwlanForWfcActivation = false;
+        mSipDialogSessionState = false;
+        mCachedTransportTypeForEmergencyInitialConnect =
+                AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
         log(
                 "WfcSettings. mWfcPlatformEnabled:"
                         + mWfcPlatformEnabled
@@ -355,6 +361,8 @@ class AccessNetworkEvaluator {
                 mHandler, EVENT_DATA_CONNECTION_STATE_CHANGED);
         mQnsImsManager.registerImsRegistrationStatusChanged(
                 mHandler, EVENT_IMS_REGISTRATION_STATE_CHANGED);
+        mQnsImsManager.registerSipDialogSessionStateChanged(
+                mHandler, EVENT_SIP_DIALOG_SESSION_STATE_CHANGED);
         mCellularNetworkStatusTracker.registerQnsTelephonyInfoChanged(
                 mNetCapability, mHandler, EVENT_QNS_TELEPHONY_INFO_CHANGED);
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS
@@ -362,13 +370,8 @@ class AccessNetworkEvaluator {
             mCallStatusTracker.registerCallTypeChangedListener(
                     mNetCapability, mHandler, EVENT_SET_CALL_TYPE, null);
         }
-        if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
-            mAltEventListener.registerEmergencyPreferredTransportTypeChanged(
-                    mHandler, EVENT_EMERGENCY_PREFERRED_TRANSPORT_TYPE_CHANGED, null);
-        }
+
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
-            mAltEventListener.registerTryWfcConnectionStateListener(
-                    mHandler, EVENT_WFC_ACTIVATION_WITH_IWLAN_CONNECTION_REQUIRED, null);
             if (mWifiBackhaulMonitor.isRttCheckEnabled()) {
                 mWifiBackhaulMonitor.registerForRttStatusChange(
                         mHandler, EVENT_WIFI_RTT_STATUS_CHANGED);
@@ -402,6 +405,7 @@ class AccessNetworkEvaluator {
         mCellularQualityMonitor.unregisterThresholdChange(mNetCapability, mSlotIndex);
         mDataConnectionStatusTracker.unRegisterDataConnectionStatusChanged(mHandler);
         mQnsImsManager.unregisterImsRegistrationStatusChanged(mHandler);
+        mQnsImsManager.unregisterSipDialogSessionStateChanged(mHandler);
         mCellularNetworkStatusTracker.unregisterQnsTelephonyInfoChanged(mNetCapability, mHandler);
         mIwlanNetworkStatusTracker.unregisterIwlanNetworksChanged(mSlotIndex, mHandler);
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS
@@ -410,9 +414,6 @@ class AccessNetworkEvaluator {
             if (mWifiBackhaulMonitor.isRttCheckEnabled()) {
                 mWifiBackhaulMonitor.unRegisterForRttStatusChange(mHandler);
             }
-        }
-        if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
-            mAltEventListener.unregisterEmergencyPreferredTransportTypeChanged();
         }
         mQnsProvisioningListener.unregisterProvisioningItemInfoChanged(mHandler);
         mQnsEventDispatcher.unregisterEvent(mHandler);
@@ -641,7 +642,7 @@ class AccessNetworkEvaluator {
         if (isEnabled) {
             mHandler.sendEmptyMessageDelayed(
                     QnsEventDispatcher.QNS_EVENT_CANCEL_TRY_WFC_ACTIVATION,
-                    timeout + /* milliseconds */3000);
+                    timeout + /* milliseconds */ 3000);
         } else {
             mHandler.removeMessages(QnsEventDispatcher.QNS_EVENT_CANCEL_TRY_WFC_ACTIVATION);
         }
@@ -665,32 +666,41 @@ class AccessNetworkEvaluator {
         evaluate();
     }
 
-    private void onEmergencyPreferredTransportTypeChanged(
+    void onEmergencyPreferredTransportTypeChanged(
             @AccessNetworkConstants.TransportType int transport) {
         if (mNetCapability != NetworkCapabilities.NET_CAPABILITY_EIMS) {
             return;
         }
-        log(
-                "onEmergencyPreferredTransportTypeChanged transport:"
-                        + QnsConstants.transportTypeToString(transport));
-        if (mDataConnectionStatusTracker.isInactiveState()) {
-            int accessNetwork;
-            List<Integer> accessNetworkTypes = new ArrayList<>();
-            if (transport == AccessNetworkConstants.TRANSPORT_TYPE_WLAN) {
-                accessNetwork = AccessNetworkType.IWLAN;
-                accessNetworkTypes.add(accessNetwork);
-            } else {
-                accessNetwork = mCellularAccessNetworkType;
-                if (accessNetwork != AccessNetworkType.UNKNOWN) {
-                    accessNetworkTypes.add(accessNetwork);
+        mHandler.post(() -> {
+                    log(
+                            "onEmergencyPreferredTransportTypeChanged transport:"
+                                    + QnsConstants.transportTypeToString(transport));
+                    if (mDataConnectionStatusTracker.isInactiveState()) {
+                        enforceNotifyQualifiedNetworksWithTransportType(transport);
+                    } else {
+                        log(
+                                "cache transportType for emergency: "
+                                        + QnsConstants.transportTypeToString(transport));
+                        mCachedTransportTypeForEmergencyInitialConnect = transport;
+                    }
                 }
-            }
-            updateLastNotifiedQualifiedNetwork(accessNetworkTypes);
-            notifyForQualifiedNetworksChanged(accessNetworkTypes);
-        }
+        );
     }
 
-    private void onDataConnectionStateChanged(
+    private void enforceNotifyQualifiedNetworksWithTransportType(
+            @AccessNetworkConstants.TransportType int transportType) {
+        List<Integer> accessNetworkTypes = new ArrayList<>();
+        if (transportType == AccessNetworkConstants.TRANSPORT_TYPE_WLAN) {
+            accessNetworkTypes.add(AccessNetworkType.IWLAN);
+        } else if (mCellularAccessNetworkType != AccessNetworkType.UNKNOWN) {
+            accessNetworkTypes.add(mCellularAccessNetworkType);
+        }
+        updateLastNotifiedQualifiedNetwork(accessNetworkTypes);
+        notifyForQualifiedNetworksChanged(accessNetworkTypes);
+    }
+
+    @VisibleForTesting
+    void onDataConnectionStateChanged(
             DataConnectionStatusTracker.DataConnectionChangedInfo info) {
         log("onDataConnectionStateChanged info:" + info);
         boolean needEvaluate = false;
@@ -698,16 +708,36 @@ class AccessNetworkEvaluator {
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_DISCONNECTED:
                 needEvaluate = true;
                 initLastNotifiedQualifiedNetwork();
+                if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
+                    // If FWK guided emergency's transport type during data connected state, notify
+                    // the transport type when the data connection is disconnected.
+                    notifyCachedTransportTypeForEmergency();
+                }
                 break;
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_CONNECTED:
                 mHandler.post(() -> onDataConnectionConnected(info.getTransportType()));
                 break;
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_FAILED:
+                if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
+                    // If FWK guided emergency's transport type during data connecting state, notify
+                    // the transport type when the data connection is failed.
+                    notifyCachedTransportTypeForEmergency();
+                }
                 needEvaluate = true;
                 break;
         }
         if (needEvaluate) {
             evaluate();
+        }
+    }
+
+    private void notifyCachedTransportTypeForEmergency() {
+        if (mCachedTransportTypeForEmergencyInitialConnect
+                != AccessNetworkConstants.TRANSPORT_TYPE_INVALID) {
+            enforceNotifyQualifiedNetworksWithTransportType(
+                    mCachedTransportTypeForEmergencyInitialConnect);
+            mCachedTransportTypeForEmergencyInitialConnect =
+                    AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
         }
     }
 
@@ -846,6 +876,19 @@ class AccessNetworkEvaluator {
         }
     }
 
+    protected void onSipDialogSessionStateChanged(boolean isActive) {
+        if (mConfigManager.getSipDialogSessionPolicy()
+                == QnsConstants.SIP_DIALOG_SESSION_POLICY_NONE) {
+            mSipDialogSessionState = false;
+            return;
+        }
+        if (mSipDialogSessionState != isActive) {
+            mSipDialogSessionState = isActive;
+            log("onSipDialogSessionStateChanged isActive:" + isActive);
+            evaluate();
+        }
+    }
+
     protected void onCellularQualityChanged(Threshold[] ths) {
         if (ths == null || ths.length == 0) {
             log("onCellularQualityChanged: E threshold is null");
@@ -943,11 +986,10 @@ class AccessNetworkEvaluator {
 
     private boolean isAccessNetworkAllowed(int accessNetwork, int netCapability) {
         switch (netCapability) {
-            case NetworkCapabilities.NET_CAPABILITY_IMS:
-                return mConfigManager.isAccessNetworkAllowed(accessNetwork, netCapability);
             case NetworkCapabilities.NET_CAPABILITY_EIMS:
-                return mConfigManager.isAccessNetworkAllowed(
-                        accessNetwork, NetworkCapabilities.NET_CAPABILITY_IMS);
+            case NetworkCapabilities.NET_CAPABILITY_IMS:
+            case NetworkCapabilities.NET_CAPABILITY_XCAP:
+                return mConfigManager.isAccessNetworkAllowed(accessNetwork, netCapability);
             default:
                 if (accessNetwork == AccessNetworkType.UNKNOWN) {
                     return false;
@@ -1782,6 +1824,26 @@ class AccessNetworkEvaluator {
                 && mCallType == QnsConstants.CALL_TYPE_EMERGENCY) {
             callType = QnsConstants.CALL_TYPE_VOICE;
         }
+        int sipDialogPolicy = mConfigManager.getSipDialogSessionPolicy();
+        if (callType == QnsConstants.CALL_TYPE_IDLE && mSipDialogSessionState) {
+            if (sipDialogPolicy > QnsConstants.SIP_DIALOG_SESSION_POLICY_NONE) {
+                log("apply sipDialogPolicy:"
+                        + QnsConstants.qnsSipDialogSessionPolicyToString(sipDialogPolicy));
+            }
+            switch (sipDialogPolicy) {
+                case QnsConstants.SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL:
+                    callType = QnsConstants.CALL_TYPE_VOICE;
+                    break;
+                case QnsConstants.SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL:
+                    callType = QnsConstants.CALL_TYPE_VIDEO;
+                    break;
+                case QnsConstants.SIP_DIALOG_SESSION_POLICY_NONE:
+                    // fall-through
+                default:
+                    // do-nothing
+                    break;
+            }
+        }
 
         if (mConfigManager.hasThresholdGapWithGuardTimer()) {
             @QnsConstants.QnsGuarding int guarding = QnsConstants.GUARDING_NONE;
@@ -1843,15 +1905,9 @@ class AccessNetworkEvaluator {
                 case EVENT_SET_CALL_TYPE:
                     onSetCallType((int) ar.mResult);
                     break;
-                case EVENT_EMERGENCY_PREFERRED_TRANSPORT_TYPE_CHANGED:
-                    onEmergencyPreferredTransportTypeChanged((int) ar.mResult);
-                    break;
                 case EVENT_DATA_CONNECTION_STATE_CHANGED:
                     onDataConnectionStateChanged(
                             (DataConnectionStatusTracker.DataConnectionChangedInfo) ar.mResult);
-                    break;
-                case EVENT_WFC_ACTIVATION_WITH_IWLAN_CONNECTION_REQUIRED:
-                    onTryWfcConnectionStateChanged((boolean) ar.mResult);
                     break;
                 case EVENT_PROVISIONING_INFO_CHANGED:
                     onProvisioningInfoChanged(
@@ -1859,6 +1915,9 @@ class AccessNetworkEvaluator {
                     break;
                 case EVENT_IMS_REGISTRATION_STATE_CHANGED:
                     onImsRegStateChanged((QnsImsManager.ImsRegistrationState) ar.mResult);
+                    break;
+                case EVENT_SIP_DIALOG_SESSION_STATE_CHANGED:
+                    onSipDialogSessionStateChanged((boolean) ar.mResult);
                     break;
                 case QnsEventDispatcher.QNS_EVENT_WFC_ENABLED:
                     onWfcEnabledChanged(true, false);
@@ -1996,6 +2055,13 @@ class AccessNetworkEvaluator {
         pw.println(prefix + "mLastProvisioningInfo=" + mLastProvisioningInfo);
         pw.println(prefix + "mAccessNetworkSelectionPolicies=" + mAccessNetworkSelectionPolicies);
         pw.println(prefix + "mAnspPolicyMap=" + mAnspPolicyMap);
+        pw.println(prefix + "mCachedTransportTypeForEmergencyInitialConnect"
+                + mCachedTransportTypeForEmergencyInitialConnect);
         mRestrictManager.dump(pw, prefix + "  ");
+    }
+
+    @VisibleForTesting
+    boolean getSipDialogSessionState() {
+        return mSipDialogSessionState;
     }
 }

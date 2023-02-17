@@ -29,32 +29,28 @@ class QnsConstants {
 
     static final String QNS_TAG = "QNS";
 
+    static final int INVALID_VALUE = -1;
     static final int INVALID_ID = -1;
-    static final int INVALID_SUB_ID = -1;
     static final int KEY_DEFAULT_VALUE = 0;
 
     static final int KEY_DEFAULT_HYST_TIMER = 30000;
-    static final int CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER = 0;
+    static final int CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER = 3000;
     static final int CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT = 5000;
 
-    static final int KEY_DEFAULT_JITTER = 120;
-    static final int KEY_DEFAULT_PACKET_LOSS_RATE = 40;
-    static final int KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS = 5000;
-    static final int KEY_DEFAULT_NO_RTP_INTERVAL_MILLIS = 2000;
+    static final int KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS = 3000;
     static final int KEY_DEFAULT_IWLAN_AVOID_TIME_LOW_RTP_QUALITY_MILLIS = 60000;
+    static final int KEY_DEFAULT_WWAN_AVOID_TIME_LOW_RTP_QUALITY_MILLIS = 60000;
 
-    static final int KEY_DEFAULT_THRESHOLD_SSRSRP_GOOD = -99;
-    static final int KEY_DEFAULT_THRESHOLD_SSRSRP_BAD = -111;
-    static final int KEY_DEFAULT_THRESHOLD_RSRP_GOOD = -99;
-    static final int KEY_DEFAULT_THRESHOLD_RSRP_BAD = -111;
-    static final int KEY_DEFAULT_THRESHOLD_RSCP_GOOD = -90;
-    static final int KEY_DEFAULT_THRESHOLD_RSCP_BAD = -100;
-    static final int KEY_DEFAULT_THRESHOLD_GERAN_RSSI_GOOD = -90;
-    static final int KEY_DEFAULT_THRESHOLD_GERAN_RSSI_BAD = -100;
-    static final int KEY_DEFAULT_THRESHOLD_WIFI_RSSI_GOOD = -70;
+    static final int KEY_DEFAULT_THRESHOLD_SSRSRP_GOOD = -110;
+    static final int KEY_DEFAULT_THRESHOLD_SSRSRP_BAD = -115;
+    static final int KEY_DEFAULT_THRESHOLD_RSRP_GOOD = -115;
+    static final int KEY_DEFAULT_THRESHOLD_RSRP_BAD = -120;
+    static final int KEY_DEFAULT_THRESHOLD_RSCP_GOOD = -105;
+    static final int KEY_DEFAULT_THRESHOLD_RSCP_BAD = -115;
+    static final int KEY_DEFAULT_THRESHOLD_GERAN_RSSI_GOOD = -100;
+    static final int KEY_DEFAULT_THRESHOLD_GERAN_RSSI_BAD = -105;
+    static final int KEY_DEFAULT_THRESHOLD_WIFI_RSSI_GOOD = -75;
     static final int KEY_DEFAULT_THRESHOLD_WIFI_RSSI_BAD = -80;
-    static final int KEY_DEFAULT_THRESHOLD_VIDEO_WIFI_RSSI_GOOD = -65;
-    static final int KEY_DEFAULT_THRESHOLD_VIDEO_WIFI_RSSI_BAD = -75;
 
     static final int CALL_TYPE_IDLE = 0;
     static final int CALL_TYPE_VOICE = 1;
@@ -77,6 +73,8 @@ class QnsConstants {
     @IntDef(value = {COVERAGE_HOME, COVERAGE_ROAM, COVERAGE_BOTH})
     @interface CellularCoverage {}
 
+    // These(RTP_LOW_QUALITY_) constants are used to @code worseThanBefore(),
+    // be caution before change.
     static final int RTP_LOW_QUALITY_REASON_JITTER = 1;
     static final int RTP_LOW_QUALITY_REASON_PACKET_LOSS = 2;
     static final int RTP_LOW_QUALITY_REASON_NO_RTP = 3;
@@ -162,6 +160,18 @@ class QnsConstants {
             })
     @interface QnsImsRegiEvent {}
 
+    static final int SIP_DIALOG_SESSION_POLICY_NONE = 0;
+    static final int SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL = 1;
+    static final int SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL = 2;
+
+    @IntDef(
+            value = {
+                    SIP_DIALOG_SESSION_POLICY_NONE,
+                    SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL,
+                    SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL,
+            })
+    @interface QnsSipDialogSessionPolicy {}
+
     static final int THRESHOLD_MATCH_TYPE_EQUAL_TO = 0;
     static final int THRESHOLD_EQUAL_OR_LARGER = 1;
     static final int THRESHOLD_EQUAL_OR_SMALLER = 2;
@@ -172,7 +182,6 @@ class QnsConstants {
     static final int SIGNAL_AVAILABLE = 1;
 
     static final int DEFAULT_WIFI_BACKHAUL_TIMER = 3000;
-    static final int DEFAULT_MSG_DELAY_TIMER = 1000;
 
     static final int TRANSPORT_TYPE_ALLOWED_WWAN = 0;
     static final int TRANSPORT_TYPE_ALLOWED_IWLAN = 1;
@@ -420,6 +429,26 @@ class QnsConstants {
                 return AccessNetworkType.IWLAN;
             default:
                 return AccessNetworkType.UNKNOWN;
+        }
+    }
+
+    /**
+     * This method converts QnsSipDialogSessionPolicy to string.
+     *
+     * @param policy int value of QnsSipDialogSessionPolicy.
+     * @return String value of QnsSipDialogSessionPolicy.
+     */
+    static String qnsSipDialogSessionPolicyToString(
+            @QnsConstants.QnsSipDialogSessionPolicy int policy) {
+        switch (policy) {
+            case SIP_DIALOG_SESSION_POLICY_NONE:
+                return "POLICY_NONE";
+            case SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL:
+                return "POLICY_VOICE";
+            case SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL:
+                return "POLICY_VIDEO";
+            default:
+                return "NONE";
         }
     }
 }

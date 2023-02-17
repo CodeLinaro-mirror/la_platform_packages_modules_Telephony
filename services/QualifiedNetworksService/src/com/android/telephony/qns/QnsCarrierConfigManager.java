@@ -62,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -378,25 +379,6 @@ class QnsCarrierConfigManager {
     static final String KEY_QNS_MMS_TRANSPORT_TYPE_INT = "qns.mms_transport_type_int";
 
     /**
-     * Specifies the Transport type UE supports with QNS services for XCAP network capability.
-     * {@link QnsConstants}. The values are set as below:
-     *
-     * <ul>
-     *   <li>0: {@link QnsConstants#TRANSPORT_TYPE_ALLOWED_WWAN}
-     *   <li>1: {@link QnsConstants#TRANSPORT_TYPE_ALLOWED_IWLAN}
-     *   <li>2: {@link QnsConstants#TRANSPORT_TYPE_ALLOWED_BOTH}
-     * </ul>
-     *
-     * <p>{@code QnsConstants#TRANSPORT_TYPE_ALLOWED_WWAN}: If set , Transport type UE supports is
-     * cellular for XCAP network capability. {@code QnsConstants#TRANSPORT_TYPE_ALLOWED_IWLAN}: If
-     * this value set , Transport type UE supports is Wifi for XCAP network capability. {@code
-     * QnsConstants#TRANSPORT_TYPE_ALLOWED_BOTH}: If this value set , Transport type UE supports is
-     * both Cellular & Wifi for XCAP network capability. The default value for this key is {@link
-     * QnsConstants#TRANSPORT_TYPE_ALLOWED_WWAN}
-     */
-    static final String KEY_QNS_XCAP_TRANSPORT_TYPE_INT = "qns.xcap_transport_type_int";
-
-    /**
      * Specifies the Transport type UE supports with QNS services for CBS network capability. {@link
      * QnsConstants}. The values are set as below:
      *
@@ -486,37 +468,29 @@ class QnsCarrierConfigManager {
     /**
      * This item is the minimum handover guarding timer value when there is no guarding time for
      * handover.
+     * Note:
+     * If this value is set to less than or equal to 0, minimum guarding action is disabled.
+     * if this value is set to greater than or equal to
+     * {@code QnsConstants#CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT},
+     * {@code QnsConstants#CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT} value is set.
+     * If no value set at asset or paris , QnsConstants#CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER
+     * value at code is set.
      *
      * <p>{@code QnsConstants#CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER} : default value of timer.
-     * {@code QnsConstants#CONFIg_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT} : maximum allowable
+     * {@code QnsConstants#CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT} : maximum allowable
      * value.
      */
     static final String KEY_MINIMUM_HANDOVER_GUARDING_TIMER_MS_INT =
             "qns.minimum_handover_guarding_timer_ms_int";
 
     /**
-     * List of 4 items indicating the RTP media metrics criteria to be set ,to make HO decision
-     * during Call. The three items part of integer array is jitter , Packet loss rate & RTP
-     * interval.
+     * This indicates time duration for packet loss rate sustained.
      *
-     * <p>{@link QnsConstants}. The values are set as below:
-     *
-     * <ul>
-     *   <li>0: {@link QnsConstants#KEY_DEFAULT_JITTER}
-     *   <li>1: {@link QnsConstants#KEY_DEFAULT_PACKET_LOSS_RATE}
-     *   <li>2: {@link QnsConstants#KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS}
-     *   <li>3: {@link QnsConstants#KEY_DEFAULT_NO_RTP_INTERVAL_MILLIS}
-     * </ul>
-     *
-     * {@code QnsConstants#KEY_DEFAULT_JITTER , QnsConstants#KEY_DEFAULT_PACKET_LOSS_RATE ,
-     * QnsConstants#KEY_DEFAULT_NO_RTP_INTERVAL }: If set , indicates the jitter : Indicating the
-     * latentcy , Packet loss rate : Indicating the percentage loss & RTP interval indicating the
-     * interval in secs criteria to determine the HO decision . The default value for this key is
-     * {@code QnsConstants#KEY_DEFAULT_JITTER, QnsConstants#KEY_DEFAULT_PACKET_LOSS_RATE,
-     * QnsConstants#KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS,
-     * QnsConstants#KEY_DEFAULT_NO_RTP_INTERVAL_MILLIS}
+     * <p/> The default value for this key is {@code
+     * QnsConstants#KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS}
      */
-    static final String KEY_QNS_RTP_METRICS_INT_ARRAY = "qns.rtp_metrics_int_array";
+    static final String KEY_QNS_MEDIA_THRESHOLD_RTP_PACKET_LOSS_TIME_MILLIS_INT =
+            "qns.media_threshold_rtp_packet_loss_time_millis";
 
     /**
      * Specify a list of the waiting time(millisecond) for the preferred transport type when power
@@ -676,6 +650,23 @@ class QnsCarrierConfigManager {
     static final String KEY_QNS_FALLBACK_WWAN_IMS_HO_REGISTER_FAIL_REASON_STRING_ARRAY =
             "qns.fallback_wwan_ims_ho_register_fail_reason_string_array";
 
+    /**
+     * Specifies override the call precondition policy of AccessNetworkSelectionPolicy when the
+     * Sip Dialog Session is active.
+     * This Sip Dialog Session policy is applied when there is no calling in the subscription, and
+     * when the device is in a calling state, the calling policy is used first.
+     *
+     * <p> If the Sip Dialog Session is active, the AccessNetworkSelectionPolicy is applied as one
+     * of three policies: none, follow policy as voice call or as video call.
+     * <li>0: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_NONE} not Applied. The default value
+     * for this key.
+     * <li>1: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL} apply voice call
+     * policy.
+     * <li>2: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL}  apply video call
+     * policy.
+     */
+    static final String KEY_SIP_DIALOG_SESSION_POLICY_INT = "qns.sip_dialog_session_policy_int";
+
     static HashMap<Integer, String> sAccessNetworkMap =
             new HashMap<>() {
                 {
@@ -738,7 +729,7 @@ class QnsCarrierConfigManager {
     private int mQnsImsTransportType;
     private int mQnsSosTransportType;
     private int mQnsMmsTransportType;
-    private int mQnsXcapTransportType;
+    private int[] mQnsXcapSupportedAccessNetworkTypes;
     private int mQnsCbsTransportType;
     private int mXcapRatPreference;
     private int mSosRatPreference;
@@ -747,12 +738,13 @@ class QnsCarrierConfigManager {
     private int mNetworkEnableHysteresisTimer;
     private int mMinimumHandoverGuardingTimer;
     private int mVowifiRegistrationTimerForVowifiActivation;
+    private int mSipDialogSessionPolicy;
 
     private int[] mWwanHysteresisTimer;
     private int[] mWlanHysteresisTimer;
     private int[] mNonImsWwanHysteresisTimer;
     private int[] mNonImsWlanHysteresisTimer;
-    private int[] mRTPMetricsData;
+    private int[] mRTPMetricsData = new int[4];
     private int[] mWaitingTimerForPreferredTransport;
     private int[] mAllowMaxIwlanHoCountOnReason;
     private int[] mHoRestrictTimeOnRtpQuality;
@@ -993,9 +985,10 @@ class QnsCarrierConfigManager {
                         "Need to specify both source and target. " + "\"" + ruleString + "\"");
             }
 
-            if (source.contains(AccessNetworkConstants.AccessNetworkType.UNKNOWN)) {
-                throw new IllegalArgumentException(
-                        "Source access networks contains unknown. " + "\"" + ruleString + "\"");
+            if (source.contains(AccessNetworkConstants.AccessNetworkType.UNKNOWN)
+                    && type != RULE_TYPE_DISALLOWED) {
+                throw new IllegalArgumentException("Unknown access network can be only specified in"
+                        + " the disallowed rule. \"" + ruleString + "\"");
             }
 
             if (target.contains(AccessNetworkConstants.AccessNetworkType.UNKNOWN)) {
@@ -1173,6 +1166,8 @@ class QnsCarrierConfigManager {
         loadDirectFromCarrierConfigManagerKey(carrierConfigBundle);
 
         loadWfcConfigurations(carrierConfigBundle, assetConfigBundle);
+
+        loadMediaThreshold(carrierConfigBundle, assetConfigBundle);
     }
 
     /**
@@ -1321,8 +1316,11 @@ class QnsCarrierConfigManager {
                 getConfig(bundleCarrier, bundleAsset, KEY_QNS_SOS_TRANSPORT_TYPE_INT);
         mQnsMmsTransportType =
                 getConfig(bundleCarrier, bundleAsset, KEY_QNS_MMS_TRANSPORT_TYPE_INT);
-        mQnsXcapTransportType =
-                getConfig(bundleCarrier, bundleAsset, KEY_QNS_XCAP_TRANSPORT_TYPE_INT);
+        mQnsXcapSupportedAccessNetworkTypes =
+                getConfig(
+                        bundleCarrier,
+                        bundleAsset,
+                        CarrierConfigManager.ImsSs.KEY_XCAP_OVER_UT_SUPPORTED_RATS_INT_ARRAY);
         mQnsCbsTransportType =
                 getConfig(bundleCarrier, bundleAsset, KEY_QNS_CBS_TRANSPORT_TYPE_INT);
         mQnsCbsTransportType =
@@ -1364,7 +1362,6 @@ class QnsCarrierConfigManager {
                         bundleCarrier,
                         bundleAsset,
                         KEY_QNS_HO_RESTRICT_TIME_WITH_LOW_RTP_QUALITY_MILLIS_INT_ARRAY);
-        mRTPMetricsData = getConfig(bundleCarrier, bundleAsset, KEY_QNS_RTP_METRICS_INT_ARRAY);
         mWlanRttBackhaulCheckConfigsOnPing =
                 getConfig(
                         bundleCarrier,
@@ -1383,6 +1380,8 @@ class QnsCarrierConfigManager {
                         bundleCarrier,
                         bundleAsset,
                         KEY_QNS_ROVEIN_THRESHOLD_GAP_WITH_GUARD_TIMER_STRING_ARRAY);
+        mSipDialogSessionPolicy =
+                getConfig(bundleCarrier, bundleAsset, KEY_SIP_DIALOG_SESSION_POLICY_INT);
 
         loadFallbackPolicyWithImsRegiFail(bundleCarrier, bundleAsset);
     }
@@ -1524,6 +1523,26 @@ class QnsCarrierConfigManager {
                 }
             }
         }
+    }
+
+    void loadMediaThreshold(PersistableBundle bundleCarrier, PersistableBundle assetConfigBundle) {
+        //read Jitter
+        mRTPMetricsData[0] = getConfig(
+                bundleCarrier, null,
+                CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_JITTER_THRESHOLD_MILLIS_INT);
+        //read Packet Loss Rate
+        mRTPMetricsData[1] = getConfig(
+                bundleCarrier, null,
+                CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_PACKET_LOSS_RATE_THRESHOLD_INT);
+        //read Inactivity Time
+        long inactivityTime = getConfig(
+                bundleCarrier, null,
+                CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_INACTIVITY_TIME_THRESHOLD_MILLIS_LONG);
+        mRTPMetricsData[3] = (int) inactivityTime;
+        //read Packet Loss Duration
+        mRTPMetricsData[2] = getConfig(
+                bundleCarrier, assetConfigBundle,
+                KEY_QNS_MEDIA_THRESHOLD_RTP_PACKET_LOSS_TIME_MILLIS_INT);
     }
 
     /** Updated handover rules from carrier config. */
@@ -1930,7 +1949,19 @@ class QnsCarrierConfigManager {
         } else if (netCapability == NetworkCapabilities.NET_CAPABILITY_MMS) {
             return mQnsMmsTransportType;
         } else if (netCapability == NetworkCapabilities.NET_CAPABILITY_XCAP) {
-            return mQnsXcapTransportType;
+            HashSet<Integer> supportedTransportType = new HashSet<>();
+            if (mQnsXcapSupportedAccessNetworkTypes != null) {
+                Arrays.stream(mQnsXcapSupportedAccessNetworkTypes)
+                        .forEach(accessNetwork -> supportedTransportType.add(
+                                QnsUtils.getTransportTypeFromAccessNetwork(accessNetwork)));
+            }
+            if (supportedTransportType.contains(AccessNetworkConstants.TRANSPORT_TYPE_WLAN)) {
+                if (supportedTransportType.contains(AccessNetworkConstants.TRANSPORT_TYPE_WWAN)) {
+                    return QnsConstants.TRANSPORT_TYPE_ALLOWED_BOTH;
+                }
+                return QnsConstants.TRANSPORT_TYPE_ALLOWED_IWLAN;
+            }
+            return QnsConstants.TRANSPORT_TYPE_ALLOWED_WWAN;
         } else if (netCapability == NetworkCapabilities.NET_CAPABILITY_CBS) {
             return mQnsCbsTransportType;
         }
@@ -2013,10 +2044,10 @@ class QnsCarrierConfigManager {
      */
     int getMinimumHandoverGuardingTimer() {
         int timer = mMinimumHandoverGuardingTimer;
-        if (timer < QnsConstants.CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER) {
-            timer = QnsConstants.CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER;
+        if (timer <= 0) {
+            return 0;
         }
-        if (timer > QnsConstants.CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT) {
+        if (timer >= QnsConstants.CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT) {
             timer = QnsConstants.CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER_LIMIT;
         }
         return timer;
@@ -2348,8 +2379,10 @@ class QnsCarrierConfigManager {
                 || mQnsMmsTransportType == QnsConstants.TRANSPORT_TYPE_ALLOWED_BOTH) {
             netCapabilities.add(NetworkCapabilities.NET_CAPABILITY_MMS);
         }
-        if (mQnsXcapTransportType == QnsConstants.TRANSPORT_TYPE_ALLOWED_IWLAN
-                || mQnsXcapTransportType == QnsConstants.TRANSPORT_TYPE_ALLOWED_BOTH) {
+        if (mQnsXcapSupportedAccessNetworkTypes != null
+                && Arrays.stream(mQnsXcapSupportedAccessNetworkTypes)
+                        .anyMatch(accessNetwork -> QnsUtils.getTransportTypeFromAccessNetwork(
+                                accessNetwork) == AccessNetworkConstants.TRANSPORT_TYPE_WLAN)) {
             netCapabilities.add(NetworkCapabilities.NET_CAPABILITY_XCAP);
         }
         if (mQnsCbsTransportType == QnsConstants.TRANSPORT_TYPE_ALLOWED_IWLAN
@@ -2359,34 +2392,42 @@ class QnsCarrierConfigManager {
         return netCapabilities;
     }
 
+    private static HashMap<Integer, String> sRatStringMatcher;
+    static {
+        sRatStringMatcher = new HashMap<>();
+        sRatStringMatcher.put(AccessNetworkConstants.AccessNetworkType.EUTRAN, "LTE");
+        sRatStringMatcher.put(AccessNetworkConstants.AccessNetworkType.NGRAN, "NR");
+        sRatStringMatcher.put(AccessNetworkConstants.AccessNetworkType.UTRAN, "3G");
+        sRatStringMatcher.put(AccessNetworkConstants.AccessNetworkType.GERAN, "2G");
+    }
+
     /**
      * This method returns Allowed cellular RAT for IMS
      *
-     * @param accessNetwork , netCapability : EUTRAN / NGRAN / UTRAN/ GERAN
+     * @param accessNetwork : (EUTRAN, NGRAN, UTRAN, GERAN)
+     * @param netCapability : (ims, sos, mms, xcap, cbs)
      * @return : True or False based on configuration
      */
     boolean isAccessNetworkAllowed(int accessNetwork, int netCapability) {
 
-        // cases to be enhanced for different key items when added
-        if (netCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
-            if (mImsAllowedRats != null) {
-                for (String cellularRatType : mImsAllowedRats) {
-                    if ((cellularRatType.contains("LTE")
-                                    && accessNetwork
-                                            == AccessNetworkConstants.AccessNetworkType.EUTRAN)
-                            || (cellularRatType.contains("NR")
-                                    && accessNetwork
-                                            == AccessNetworkConstants.AccessNetworkType.NGRAN)
-                            || (cellularRatType.contains("3G")
-                                    && accessNetwork
-                                            == AccessNetworkConstants.AccessNetworkType.UTRAN)
-                            || (cellularRatType.contains("2G")
-                                    && accessNetwork
-                                            == AccessNetworkConstants.AccessNetworkType.GERAN)) {
-                        return true;
-                    }
+        switch (netCapability) {
+            case NetworkCapabilities.NET_CAPABILITY_EIMS:
+            case NetworkCapabilities.NET_CAPABILITY_IMS:
+                // cases to be enhanced for different key items when added
+                String ratName = sRatStringMatcher.get(accessNetwork);
+                if (mImsAllowedRats != null
+                        && ratName != null
+                        && Arrays.stream(mImsAllowedRats)
+                                .anyMatch(ratType -> TextUtils.equals(ratType, ratName))) {
+                    return true;
                 }
-            }
+                break;
+            case NetworkCapabilities.NET_CAPABILITY_XCAP:
+                return mQnsXcapSupportedAccessNetworkTypes != null
+                        && Arrays.stream(mQnsXcapSupportedAccessNetworkTypes)
+                                .anyMatch(xcapAccessNetwork -> accessNetwork == xcapAccessNetwork);
+            default:
+                return false;
         }
         return false;
     }
@@ -2628,6 +2669,20 @@ class QnsCarrierConfigManager {
         return null;
     }
 
+    /**
+     * Get the Sip Dialog Session policy when the Sip Dialog State is active. This Sip Dialog
+     * Session policy is applied when there is no calling in the subscription, and when the device
+     * is in a calling state, the calling policy is used first.
+     *
+     * @return 0: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_NONE} not Applied. The default value
+     * for this key. 1: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL} apply voice
+     * call policy. 2: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL}  apply video
+     * call policy.
+     */
+    @QnsConstants.QnsSipDialogSessionPolicy int getSipDialogSessionPolicy() {
+        return mSipDialogSessionPolicy;
+    }
+
     static class QnsConfigArray {
 
         /*
@@ -2683,10 +2738,10 @@ class QnsCarrierConfigManager {
         /** RTP packet loss rate in percentage */
         final int mPktLossRate;
 
-        /** Time interval of RTP packet loss rate */
+        /** Time interval(milliseconds) of RTP packet loss rate */
         final int mPktLossTime;
 
-        /** No RTP interval in seconds */
+        /** No RTP interval in milliseconds */
         final int mNoRtpInterval;
 
         RtpMetricsConfig(int jitter, int pktLossRate, int pktLossTime, int noRtpInterval) {

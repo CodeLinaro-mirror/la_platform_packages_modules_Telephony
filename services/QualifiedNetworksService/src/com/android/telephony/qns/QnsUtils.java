@@ -264,6 +264,17 @@ class QnsUtils {
         return false;
     }
 
+    @AccessNetworkConstants.TransportType
+    static int getTransportTypeFromAccessNetwork(
+            @AccessNetworkConstants.RadioAccessNetworkType int accessNetwork) {
+        if (accessNetwork == AccessNetworkConstants.AccessNetworkType.IWLAN) {
+            return AccessNetworkConstants.TRANSPORT_TYPE_WLAN;
+        } else if (accessNetwork != AccessNetworkConstants.AccessNetworkType.UNKNOWN) {
+            return AccessNetworkConstants.TRANSPORT_TYPE_WWAN;
+        }
+        return AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
+    }
+
     /**
      * Get Set of network capabilities from string joined by {@code |}, space is ignored. If input
      * string contains unknown capability or malformatted(e.g. empty string), -1 is included in the
@@ -282,6 +293,21 @@ class QnsUtils {
                 .map(String::trim)
                 .map(QnsUtils::getNetworkCapabilityFromString)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Returns another transport type.
+     * @param transportType transport type
+     * @return another transport type of input parameter
+     */
+    @AccessNetworkConstants.TransportType
+    static int getOtherTransportType(@AccessNetworkConstants.TransportType int transportType) {
+        if (transportType == AccessNetworkConstants.TRANSPORT_TYPE_WLAN) {
+            return AccessNetworkConstants.TRANSPORT_TYPE_WWAN;
+        } else if (transportType == AccessNetworkConstants.TRANSPORT_TYPE_WWAN) {
+            return AccessNetworkConstants.TRANSPORT_TYPE_WLAN;
+        }
+        return AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
     }
 
     /**
@@ -590,6 +616,8 @@ class QnsUtils {
             case QnsCarrierConfigManager
                     .KEY_IN_CALL_HO_DECISION_WLAN_TO_WWAN_WITHOUT_VOPS_CONDITION_BOOL:
                 return (T) Boolean.valueOf(false);
+            case QnsCarrierConfigManager.KEY_SIP_DIALOG_SESSION_POLICY_INT:
+                return (T) Integer.valueOf(QnsConstants.SIP_DIALOG_SESSION_POLICY_NONE);
             case QnsCarrierConfigManager.KEY_QNS_CELLULAR_SS_THRESHOLDBACKHAUL_TIMER_MS_INT:
                 return (T) Integer.valueOf(QnsConstants.KEY_DEFAULT_VALUE);
             case QnsCarrierConfigManager.KEY_QNS_WIFI_RSSI_THRESHOLDBACKHAUL_TIMER_MS_INT:
@@ -597,7 +625,6 @@ class QnsUtils {
             case QnsCarrierConfigManager.KEY_QNS_IMS_TRANSPORT_TYPE_INT:
                 return (T) Integer.valueOf(QnsConstants.TRANSPORT_TYPE_ALLOWED_BOTH);
             case QnsCarrierConfigManager.KEY_QNS_MMS_TRANSPORT_TYPE_INT:
-            case QnsCarrierConfigManager.KEY_QNS_XCAP_TRANSPORT_TYPE_INT:
             case QnsCarrierConfigManager.KEY_QNS_CBS_TRANSPORT_TYPE_INT:
             case QnsCarrierConfigManager.KEY_QNS_SOS_TRANSPORT_TYPE_INT:
                 return (T) Integer.valueOf(QnsConstants.TRANSPORT_TYPE_ALLOWED_WWAN);
@@ -608,6 +635,13 @@ class QnsUtils {
                 return (T) Integer.valueOf(QnsConstants.RAT_PREFERENCE_DEFAULT);
             case KEY_QNS_VOWIFI_REGISTATION_TIMER_FOR_VOWIFI_ACTIVATION_INT:
                 return (T) Integer.valueOf(CONFIG_DEFAULT_VOWIFI_REGISTATION_TIMER);
+            case CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_JITTER_THRESHOLD_MILLIS_INT:
+            case CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_PACKET_LOSS_RATE_THRESHOLD_INT:
+                return (T) Integer.valueOf(QnsConstants.INVALID_VALUE);
+            case QnsCarrierConfigManager.KEY_QNS_MEDIA_THRESHOLD_RTP_PACKET_LOSS_TIME_MILLIS_INT:
+                return (T) Integer.valueOf(QnsConstants.KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS);
+            case CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_INACTIVITY_TIME_THRESHOLD_MILLIS_LONG:
+                return (T) Long.valueOf(QnsConstants.INVALID_VALUE);
             case QnsCarrierConfigManager
                     .KEY_QNS_IN_CALL_ROVEIN_ALLOWED_COUNT_AND_FALLBACK_REASON_INT_ARRAY:
                 return (T)
@@ -627,7 +661,7 @@ class QnsUtils {
                 return (T)
                         new int[] {
                             QnsConstants.KEY_DEFAULT_IWLAN_AVOID_TIME_LOW_RTP_QUALITY_MILLIS,
-                            QnsConstants.KEY_DEFAULT_VALUE
+                            QnsConstants.KEY_DEFAULT_WWAN_AVOID_TIME_LOW_RTP_QUALITY_MILLIS,
                         };
             case QnsCarrierConfigManager.KEY_IMS_WWAN_HYSTERESIS_TIMER_MS_INT_ARRAY:
             case QnsCarrierConfigManager.KEY_IMS_WLAN_HYSTERESIS_TIMER_MS_INT_ARRAY:
@@ -639,14 +673,6 @@ class QnsUtils {
                         };
             case QnsCarrierConfigManager.KEY_MINIMUM_HANDOVER_GUARDING_TIMER_MS_INT:
                 return (T) Integer.valueOf(QnsConstants.CONFIG_DEFAULT_MIN_HANDOVER_GUARDING_TIMER);
-            case QnsCarrierConfigManager.KEY_QNS_RTP_METRICS_INT_ARRAY:
-                return (T)
-                        new int[] {
-                            QnsConstants.KEY_DEFAULT_JITTER,
-                            QnsConstants.KEY_DEFAULT_PACKET_LOSS_RATE,
-                            QnsConstants.KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS,
-                            QnsConstants.KEY_DEFAULT_NO_RTP_INTERVAL_MILLIS
-                        };
             case QnsCarrierConfigManager
                     .KEY_CHOOSE_WFC_PREFERRED_TRANSPORT_IN_BOTH_BAD_CONDITION_INT_ARRAY:
                 return (T) new int[] {};
@@ -654,6 +680,7 @@ class QnsUtils {
                 return (T) new String[] {"LTE", "NR"};
             case QnsCarrierAnspSupportConfig.KEY_IDLE_NGRAN_SSRSRP_INT_ARRAY:
             case QnsCarrierAnspSupportConfig.KEY_VOICE_NGRAN_SSRSRP_INT_ARRAY:
+            case QnsCarrierAnspSupportConfig.KEY_VIDEO_NGRAN_SSRSRP_INT_ARRAY:
                 return (T)
                         new int[] {
                             QnsConstants.KEY_DEFAULT_THRESHOLD_SSRSRP_GOOD,
@@ -662,6 +689,7 @@ class QnsUtils {
                         };
             case QnsCarrierAnspSupportConfig.KEY_IDLE_EUTRAN_RSRP_INT_ARRAY:
             case QnsCarrierAnspSupportConfig.KEY_VOICE_EUTRAN_RSRP_INT_ARRAY:
+            case QnsCarrierAnspSupportConfig.KEY_VIDEO_EUTRAN_RSRP_INT_ARRAY:
                 return (T)
                         new int[] {
                             QnsConstants.KEY_DEFAULT_THRESHOLD_RSRP_GOOD,
@@ -670,6 +698,7 @@ class QnsUtils {
                         };
             case QnsCarrierAnspSupportConfig.KEY_IDLE_UTRAN_RSCP_INT_ARRAY:
             case QnsCarrierAnspSupportConfig.KEY_VOICE_UTRAN_RSCP_INT_ARRAY:
+            case QnsCarrierAnspSupportConfig.KEY_VIDEO_UTRAN_RSCP_INT_ARRAY:
                 return (T)
                         new int[] {
                             QnsConstants.KEY_DEFAULT_THRESHOLD_RSCP_GOOD,
@@ -678,6 +707,7 @@ class QnsUtils {
                         };
             case QnsCarrierAnspSupportConfig.KEY_IDLE_GERAN_RSSI_INT_ARRAY:
             case QnsCarrierAnspSupportConfig.KEY_VOICE_GERAN_RSSI_INT_ARRAY:
+            case QnsCarrierAnspSupportConfig.KEY_VIDEO_GERAN_RSSI_INT_ARRAY:
                 return (T)
                         new int[] {
                             QnsConstants.KEY_DEFAULT_THRESHOLD_GERAN_RSSI_GOOD,
@@ -686,16 +716,11 @@ class QnsUtils {
                         };
             case QnsCarrierAnspSupportConfig.KEY_IDLE_WIFI_RSSI_INT_ARRAY:
             case QnsCarrierAnspSupportConfig.KEY_VOICE_WIFI_RSSI_INT_ARRAY:
+            case QnsCarrierAnspSupportConfig.KEY_VIDEO_WIFI_RSSI_INT_ARRAY:
                 return (T)
                         new int[] {
                             QnsConstants.KEY_DEFAULT_THRESHOLD_WIFI_RSSI_GOOD,
                             QnsConstants.KEY_DEFAULT_THRESHOLD_WIFI_RSSI_BAD
-                        };
-            case QnsCarrierAnspSupportConfig.KEY_VIDEO_WIFI_RSSI_INT_ARRAY:
-                return (T)
-                        new int[] {
-                            QnsConstants.KEY_DEFAULT_THRESHOLD_VIDEO_WIFI_RSSI_GOOD,
-                            QnsConstants.KEY_DEFAULT_THRESHOLD_VIDEO_WIFI_RSSI_BAD
                         };
             case QnsCarrierAnspSupportConfig.KEY_OVERRIDE_WIFI_PREF_IDLE_WIFI_RSSI_INT_ARRAY:
             case QnsCarrierAnspSupportConfig.KEY_OVERRIDE_WIFI_PREF_VOICE_WIFI_RSSI_INT_ARRAY:
