@@ -30,6 +30,7 @@ import static android.telephony.SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_SSSI
 import static android.telephony.SignalThresholdInfo.SIGNAL_MEASUREMENT_TYPE_UNKNOWN;
 
 import static com.android.telephony.qns.QnsCarrierConfigManager.KEY_QNS_ALLOW_VIDEO_OVER_IWLAN_WITH_CELLULAR_LIMITED_CASE_BOOL;
+import static com.android.telephony.qns.QnsCarrierConfigManager.KEY_SIP_DIALOG_SESSION_POLICY_INT;
 import static com.android.telephony.qns.QnsConstants.CALL_TYPE_IDLE;
 import static com.android.telephony.qns.QnsConstants.CALL_TYPE_VIDEO;
 import static com.android.telephony.qns.QnsConstants.CALL_TYPE_VOICE;
@@ -1480,12 +1481,12 @@ public class QnsCarrierConfigManagerTest extends QnsTest {
         QnsCarrierConfigManager.RtpMetricsConfig rtpMetricsData =
                 mConfigManager.getRTPMetricsData();
 
-        Assert.assertEquals(QnsConstants.KEY_DEFAULT_JITTER, rtpMetricsData.mJitter);
-        Assert.assertEquals(QnsConstants.KEY_DEFAULT_PACKET_LOSS_RATE, rtpMetricsData.mPktLossRate);
+        Assert.assertEquals(QnsConstants.INVALID_VALUE, rtpMetricsData.mJitter);
+        Assert.assertEquals(QnsConstants.INVALID_VALUE, rtpMetricsData.mPktLossRate);
         Assert.assertEquals(
                 QnsConstants.KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS, rtpMetricsData.mPktLossTime);
         Assert.assertEquals(
-                QnsConstants.KEY_DEFAULT_NO_RTP_INTERVAL_MILLIS, rtpMetricsData.mNoRtpInterval);
+                QnsConstants.INVALID_VALUE, rtpMetricsData.mNoRtpInterval);
 
         Assert.assertNotEquals(QnsConstants.KEY_DEFAULT_VALUE, rtpMetricsData.mJitter);
         Assert.assertNotEquals(QnsConstants.KEY_DEFAULT_VALUE, rtpMetricsData.mPktLossRate);
@@ -1833,89 +1834,6 @@ public class QnsCarrierConfigManagerTest extends QnsTest {
         bundle.putBoolean(KEY_QNS_ALLOW_VIDEO_OVER_IWLAN_WITH_CELLULAR_LIMITED_CASE_BOOL, true);
         mConfigManager.loadQnsAneSupportConfigurations(bundle, null);
         Assert.assertTrue(mConfigManager.allowVideoOverIWLANWithCellularLimitedCase());
-    }
-
-    @Test
-    public void testNeedToCheckInternationalRoaming() {
-        PersistableBundle bundle = new PersistableBundle();
-        bundle.putStringArray(
-                QnsCarrierConfigManager
-                        .KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY,
-                new String[] {"ims", "mms"});
-        mConfigManager.loadQnsAneSupportConfigurations(bundle, null);
-        assertTrue(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_IMS));
-        assertFalse(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_EIMS));
-        assertTrue(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_MMS));
-        assertFalse(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_XCAP));
-
-        PersistableBundle bundle2 = new PersistableBundle();
-        bundle2.putStringArray(
-                QnsCarrierConfigManager
-                        .KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY,
-                new String[] {"ims", "eims"});
-        mConfigManager.loadQnsAneSupportConfigurations(bundle2, null);
-        assertTrue(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_IMS));
-        assertFalse(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_EIMS));
-
-        PersistableBundle bundle3 = new PersistableBundle();
-        bundle3.putStringArray(
-                QnsCarrierConfigManager
-                        .KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY,
-                new String[] {"ims", "emergency"});
-        mConfigManager.loadQnsAneSupportConfigurations(bundle3, null);
-        assertTrue(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_IMS));
-        assertTrue(
-                mConfigManager.needToCheckInternationalRoaming(
-                        NetworkCapabilities.NET_CAPABILITY_EIMS));
-    }
-
-    @Test
-    public void testIsDefinedInternationalRoamingPlmn() {
-        PersistableBundle bundle = new PersistableBundle();
-        bundle.putStringArray(
-                QnsCarrierConfigManager
-                        .KEY_PLMN_LIST_REGARDED_AS_INTERNATIONAL_ROAMING_STRING_ARRAY,
-                new String[] {"316030", "320", "272119", "25203"});
-        mConfigManager.loadQnsAneSupportConfigurations(bundle, null);
-        assertTrue(mConfigManager.isDefinedInternationalRoamingPlmn("32033"));
-        assertFalse(mConfigManager.isDefinedInternationalRoamingPlmn("32133"));
-        assertTrue(mConfigManager.isDefinedInternationalRoamingPlmn("31630"));
-        assertTrue(mConfigManager.isDefinedInternationalRoamingPlmn("252003"));
-        assertFalse(mConfigManager.isDefinedInternationalRoamingPlmn("252030"));
-        assertTrue(mConfigManager.isDefinedInternationalRoamingPlmn("272119"));
-        assertFalse(mConfigManager.isDefinedInternationalRoamingPlmn("273020"));
-        assertFalse(mConfigManager.isDefinedDomesticRoamingPlmn("32033"));
-    }
-
-    @Test
-    public void testIsDefinedDomesticRoamingPlmn() {
-        PersistableBundle bundle = new PersistableBundle();
-        bundle.putStringArray(
-                QnsCarrierConfigManager.KEY_PLMN_LIST_REGARDED_AS_DOMESTIC_ROAMING_STRING_ARRAY,
-                new String[] {"316030", "320", "272119", "25203"});
-        mConfigManager.loadQnsAneSupportConfigurations(bundle, null);
-        assertTrue(mConfigManager.isDefinedDomesticRoamingPlmn("32033"));
-        assertFalse(mConfigManager.isDefinedDomesticRoamingPlmn("32133"));
-        assertTrue(mConfigManager.isDefinedDomesticRoamingPlmn("31630"));
-        assertTrue(mConfigManager.isDefinedDomesticRoamingPlmn("252003"));
-        assertFalse(mConfigManager.isDefinedDomesticRoamingPlmn("252030"));
-        assertTrue(mConfigManager.isDefinedDomesticRoamingPlmn("272119"));
-        assertFalse(mConfigManager.isDefinedDomesticRoamingPlmn("273020"));
-        assertFalse(mConfigManager.isDefinedInternationalRoamingPlmn("252003"));
     }
 
     @Test
@@ -2389,6 +2307,23 @@ public class QnsCarrierConfigManagerTest extends QnsTest {
         bundle.putInt(KEY_QNS_VOWIFI_REGISTATION_TIMER_FOR_VOWIFI_ACTIVATION_INT, 60000);
         mConfigManager.loadWfcConfigurations(null, bundle);
         Assert.assertEquals(60000, mConfigManager.getVowifiRegistrationTimerForVowifiActivation());
+    }
+
+    @Test
+    public void testGetSipDialogSessionPolicy() {
+        // Test for the default setting
+        int defaultPolicy = mConfigManager.getSipDialogSessionPolicy();
+        Assert.assertEquals(QnsConstants.SIP_DIALOG_SESSION_POLICY_NONE, defaultPolicy);
+
+        // Test for a new setting
+        PersistableBundle bundle = new PersistableBundle();
+        bundle.putInt(
+                KEY_SIP_DIALOG_SESSION_POLICY_INT,
+                QnsConstants.SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL);
+        mConfigManager.loadQnsAneSupportConfigurations(null, bundle);
+        int SipDialogSessionPolicy = mConfigManager.getSipDialogSessionPolicy();
+        Assert.assertEquals(
+                QnsConstants.SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL, SipDialogSessionPolicy);
     }
 
     @After

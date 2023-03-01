@@ -495,28 +495,13 @@ class QnsCarrierConfigManager {
             "qns.minimum_handover_guarding_timer_ms_int";
 
     /**
-     * List of 4 items indicating the RTP media metrics criteria to be set ,to make HO decision
-     * during Call. The three items part of integer array is jitter , Packet loss rate & RTP
-     * interval.
+     * This indicates time duration for packet loss rate sustained.
      *
-     * <p>{@link QnsConstants}. The values are set as below:
-     *
-     * <ul>
-     *   <li>0: {@link QnsConstants#KEY_DEFAULT_JITTER}
-     *   <li>1: {@link QnsConstants#KEY_DEFAULT_PACKET_LOSS_RATE}
-     *   <li>2: {@link QnsConstants#KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS}
-     *   <li>3: {@link QnsConstants#KEY_DEFAULT_NO_RTP_INTERVAL_MILLIS}
-     * </ul>
-     *
-     * {@code QnsConstants#KEY_DEFAULT_JITTER , QnsConstants#KEY_DEFAULT_PACKET_LOSS_RATE ,
-     * QnsConstants#KEY_DEFAULT_NO_RTP_INTERVAL }: If set , indicates the jitter : Indicating the
-     * latentcy , Packet loss rate : Indicating the percentage loss & RTP interval indicating the
-     * interval in secs criteria to determine the HO decision . The default value for this key is
-     * {@code QnsConstants#KEY_DEFAULT_JITTER, QnsConstants#KEY_DEFAULT_PACKET_LOSS_RATE,
-     * QnsConstants#KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS,
-     * QnsConstants#KEY_DEFAULT_NO_RTP_INTERVAL_MILLIS}
+     * <p/> The default value for this key is {@code
+     * QnsConstants#KEY_DEFAULT_PACKET_LOSS_TIME_MILLIS}
      */
-    static final String KEY_QNS_RTP_METRICS_INT_ARRAY = "qns.rtp_metrics_int_array";
+    static final String KEY_QNS_MEDIA_THRESHOLD_RTP_PACKET_LOSS_TIME_MILLIS_INT =
+            "qns.media_threshold_rtp_packet_loss_time_millis";
 
     /**
      * Specify a list of the waiting time(millisecond) for the preferred transport type when power
@@ -677,41 +662,21 @@ class QnsCarrierConfigManager {
             "qns.fallback_wwan_ims_ho_register_fail_reason_string_array";
 
     /**
-     * String array indicating network capabilities that they check international roaming condition.
+     * Specifies override the call precondition policy of AccessNetworkSelectionPolicy when the
+     * Sip Dialog Session is active.
+     * This Sip Dialog Session policy is applied when there is no calling in the subscription, and
+     * when the device is in a calling state, the calling policy is used first.
      *
-     * <p><string-array name="exclude_domestic_roaming_condition_string_array" num="3"> <item
-     * value="ims"/> <item value="emergency"/> <item value="xcap"/> </string-array>
+     * <p> If the Sip Dialog Session is active, the AccessNetworkSelectionPolicy is applied as one
+     * of three policies: none, follow policy as voice call or as video call.
+     * <li>0: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_NONE} not Applied. The default value
+     * for this key.
+     * <li>1: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL} apply voice call
+     * policy.
+     * <li>2: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL}  apply video call
+     * policy.
      */
-    static final String KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY =
-            "qns.apn_types_with_international_roaming_condition_string_array";
-
-    /**
-     * String array indicating PLMN list to be regarded as international roaming.
-     *
-     * <p> If only MCC is included without MNC, PLMNs that they have same MCC value will be
-     * regarded as international roaming.
-     * <string-array name="plmn_list_regarded_as_international_roaming_string_array" num="3">
-     * <item value="32070"/>
-     * <item value="320157"/>
-     * <item value="318"/>
-     * </string-array>
-     */
-    static final String KEY_PLMN_LIST_REGARDED_AS_INTERNATIONAL_ROAMING_STRING_ARRAY =
-            "plmn_list_regarded_as_international_roaming_string_array";
-
-    /**
-     * String array indicating PLMN list to be regarded as domestic roaming.
-     *
-     * <p> If only MCC is included without MNC, PLMNs that they have same MCC value will be
-     * regarded as domestic roaming.
-     * <string-array name="plmn_list_regarded_as_domestic_roaming_string_array" num="3">
-     * <item value="32070"/>
-     * <item value="320157"/>
-     * <item value="318"/>
-     * </string-array>
-     */
-    static final String KEY_PLMN_LIST_REGARDED_AS_DOMESTIC_ROAMING_STRING_ARRAY =
-            "plmn_list_regarded_as_domestic_roaming_string_array";
+    static final String KEY_SIP_DIALOG_SESSION_POLICY_INT = "qns.sip_dialog_session_policy_int";
 
     static HashMap<Integer, String> sAccessNetworkMap =
             new HashMap<>() {
@@ -784,12 +749,13 @@ class QnsCarrierConfigManager {
     private int mNetworkEnableHysteresisTimer;
     private int mMinimumHandoverGuardingTimer;
     private int mVowifiRegistrationTimerForVowifiActivation;
+    private int mSipDialogSessionPolicy;
 
     private int[] mWwanHysteresisTimer;
     private int[] mWlanHysteresisTimer;
     private int[] mNonImsWwanHysteresisTimer;
     private int[] mNonImsWlanHysteresisTimer;
-    private int[] mRTPMetricsData;
+    private int[] mRTPMetricsData = new int[4];
     private int[] mWaitingTimerForPreferredTransport;
     private int[] mAllowMaxIwlanHoCountOnReason;
     private int[] mHoRestrictTimeOnRtpQuality;
@@ -799,9 +765,6 @@ class QnsCarrierConfigManager {
     private String mWlanRttBackhaulCheckConfigsOnPing;
     private String[] mImsAllowedRats;
     private String[] mRoveInGuardTimerConditionThresholdGaps;
-    private String[] mApnTypesInternationalRoamingCheck;
-    private String[] mPlmnsRegardedAsDomesticRoaming;
-    private String[] mPlmnsRegardedAsInternationalRoaming;
     private String[] mFallbackOnInitialConnectionFailure;
 
     @NonNull
@@ -1033,9 +996,10 @@ class QnsCarrierConfigManager {
                         "Need to specify both source and target. " + "\"" + ruleString + "\"");
             }
 
-            if (source.contains(AccessNetworkConstants.AccessNetworkType.UNKNOWN)) {
-                throw new IllegalArgumentException(
-                        "Source access networks contains unknown. " + "\"" + ruleString + "\"");
+            if (source.contains(AccessNetworkConstants.AccessNetworkType.UNKNOWN)
+                    && type != RULE_TYPE_DISALLOWED) {
+                throw new IllegalArgumentException("Unknown access network can be only specified in"
+                        + " the disallowed rule. \"" + ruleString + "\"");
             }
 
             if (target.contains(AccessNetworkConstants.AccessNetworkType.UNKNOWN)) {
@@ -1213,6 +1177,8 @@ class QnsCarrierConfigManager {
         loadDirectFromCarrierConfigManagerKey(carrierConfigBundle);
 
         loadWfcConfigurations(carrierConfigBundle, assetConfigBundle);
+
+        loadMediaThreshold(carrierConfigBundle, assetConfigBundle);
     }
 
     /**
@@ -1404,7 +1370,6 @@ class QnsCarrierConfigManager {
                         bundleCarrier,
                         bundleAsset,
                         KEY_QNS_HO_RESTRICT_TIME_WITH_LOW_RTP_QUALITY_MILLIS_INT_ARRAY);
-        mRTPMetricsData = getConfig(bundleCarrier, bundleAsset, KEY_QNS_RTP_METRICS_INT_ARRAY);
         mWlanRttBackhaulCheckConfigsOnPing =
                 getConfig(
                         bundleCarrier,
@@ -1423,21 +1388,8 @@ class QnsCarrierConfigManager {
                         bundleCarrier,
                         bundleAsset,
                         KEY_QNS_ROVEIN_THRESHOLD_GAP_WITH_GUARD_TIMER_STRING_ARRAY);
-        mApnTypesInternationalRoamingCheck =
-                getConfig(
-                        bundleCarrier,
-                        bundleAsset,
-                        KEY_APN_TYPES_WITH_INTERNATIONAL_ROAMING_CONDITION_STRING_ARRAY);
-        mPlmnsRegardedAsInternationalRoaming =
-                getConfig(
-                        bundleCarrier,
-                        bundleAsset,
-                        KEY_PLMN_LIST_REGARDED_AS_INTERNATIONAL_ROAMING_STRING_ARRAY);
-        mPlmnsRegardedAsDomesticRoaming =
-                getConfig(
-                        bundleCarrier,
-                        bundleAsset,
-                        KEY_PLMN_LIST_REGARDED_AS_DOMESTIC_ROAMING_STRING_ARRAY);
+        mSipDialogSessionPolicy =
+                getConfig(bundleCarrier, bundleAsset, KEY_SIP_DIALOG_SESSION_POLICY_INT);
 
         loadFallbackPolicyWithImsRegiFail(bundleCarrier, bundleAsset);
     }
@@ -1579,6 +1531,26 @@ class QnsCarrierConfigManager {
                 }
             }
         }
+    }
+
+    void loadMediaThreshold(PersistableBundle bundleCarrier, PersistableBundle assetConfigBundle) {
+        //read Jitter
+        mRTPMetricsData[0] = getConfig(
+                bundleCarrier, null,
+                CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_JITTER_THRESHOLD_MILLIS_INT);
+        //read Packet Loss Rate
+        mRTPMetricsData[1] = getConfig(
+                bundleCarrier, null,
+                CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_PACKET_LOSS_RATE_THRESHOLD_INT);
+        //read Inactivity Time
+        long inactivityTime = getConfig(
+                bundleCarrier, null,
+                CarrierConfigManager.ImsVoice.KEY_VOICE_RTP_INACTIVITY_TIME_THRESHOLD_MILLIS_LONG);
+        mRTPMetricsData[3] = (int) inactivityTime;
+        //read Packet Loss Duration
+        mRTPMetricsData[2] = getConfig(
+                bundleCarrier, assetConfigBundle,
+                KEY_QNS_MEDIA_THRESHOLD_RTP_PACKET_LOSS_TIME_MILLIS_INT);
     }
 
     /** Updated handover rules from carrier config. */
@@ -2535,56 +2507,6 @@ class QnsCarrierConfigManager {
     }
 
     /**
-     * This method returns whether the network capability check roaming condition with International
-     * Roaming or not.
-     *
-     * @return : Based on Carrier Config Settings based on operator requirement possible values:
-     * True / False
-     */
-    boolean needToCheckInternationalRoaming(int netCapability) {
-        if (mApnTypesInternationalRoamingCheck == null
-                || mApnTypesInternationalRoamingCheck.length == 0) {
-            return false;
-        }
-
-        return QnsUtils.getNetCapabilitiesFromApnTypesString(mApnTypesInternationalRoamingCheck)
-                .stream()
-                .mapToInt(netCapabilityFromApn -> netCapabilityFromApn)
-                .anyMatch(netCapabilityFromApn -> netCapabilityFromApn == netCapability);
-    }
-
-    /**
-     * This method returns whether input plmn needs to be regarded as international roaming or not.
-     *
-     * @return : Based on Carrier Config Settings based on operator requirement possible values:
-     * True / False
-     */
-    boolean isDefinedInternationalRoamingPlmn(String plmn) {
-        if (mPlmnsRegardedAsInternationalRoaming != null
-                && mPlmnsRegardedAsInternationalRoaming.length > 0) {
-            for (String configuredPlmn : mPlmnsRegardedAsInternationalRoaming) {
-                Log.d(
-                        mLogTag,
-                        "isDefinedInternationalRoamingPlmn"
-                                + configuredPlmn
-                                + " is match with "
-                                + plmn);
-                if (configuredPlmn.length() == 3 && plmn.startsWith(configuredPlmn)) {
-                    return true;
-                } else if (configuredPlmn.length() > 4 && configuredPlmn.length() <= 6) {
-                    if ((Integer.valueOf(configuredPlmn.substring(0, 3))
-                                    .equals(Integer.valueOf(plmn.substring(0, 3))))
-                            && (Integer.valueOf(configuredPlmn.substring(3)))
-                                    .equals(Integer.valueOf(plmn.substring(3)))) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
      * This method returns the rtt check server address config as per operator requirement
      *
      * @return Based on carrier config settings of operator. By default, to be made empty to
@@ -2734,30 +2656,17 @@ class QnsCarrierConfigManager {
     }
 
     /**
-     * This method returns whether input plmn needs to be regarded as domestic roaming or not.
+     * Get the Sip Dialog Session policy when the Sip Dialog State is active. This Sip Dialog
+     * Session policy is applied when there is no calling in the subscription, and when the device
+     * is in a calling state, the calling policy is used first.
      *
-     * @return : Based on Carrier Config Settings based on operator requirement possible values:
-     * True / False
+     * @return 0: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_NONE} not Applied. The default value
+     * for this key. 1: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VOICE_CALL} apply voice
+     * call policy. 2: {@code QnsConstants#SIP_DIALOG_SESSION_POLICY_FOLLOW_VIDEO_CALL}  apply video
+     * call policy.
      */
-    boolean isDefinedDomesticRoamingPlmn(String plmn) {
-        if (mPlmnsRegardedAsDomesticRoaming != null && mPlmnsRegardedAsDomesticRoaming.length > 0) {
-            for (String configuredPlmn : mPlmnsRegardedAsDomesticRoaming) {
-                Log.d(
-                        mLogTag,
-                        "isDefinedDomesticRoamingPlmn" + configuredPlmn + " is match with " + plmn);
-                if (configuredPlmn.length() == 3 && plmn.startsWith(configuredPlmn)) {
-                    return true;
-                } else if (configuredPlmn.length() > 4 && configuredPlmn.length() <= 6) {
-                    if ((Integer.valueOf(configuredPlmn.substring(0, 3))
-                                    .equals(Integer.valueOf(plmn.substring(0, 3))))
-                            && (Integer.valueOf(configuredPlmn.substring(3)))
-                                    .equals(Integer.valueOf(plmn.substring(3)))) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
+    @QnsConstants.QnsSipDialogSessionPolicy int getSipDialogSessionPolicy() {
+        return mSipDialogSessionPolicy;
     }
 
     static class QnsConfigArray {
@@ -2815,10 +2724,10 @@ class QnsCarrierConfigManager {
         /** RTP packet loss rate in percentage */
         final int mPktLossRate;
 
-        /** Time interval of RTP packet loss rate */
+        /** Time interval(milliseconds) of RTP packet loss rate */
         final int mPktLossTime;
 
-        /** No RTP interval in seconds */
+        /** No RTP interval in milliseconds */
         final int mNoRtpInterval;
 
         RtpMetricsConfig(int jitter, int pktLossRate, int pktLossTime, int noRtpInterval) {
