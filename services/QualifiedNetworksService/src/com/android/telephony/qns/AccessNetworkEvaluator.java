@@ -58,7 +58,6 @@ class AccessNetworkEvaluator {
     private static final int EVENT_SET_CALL_TYPE = EVENT_BASE + 5;
     private static final int EVENT_DATA_CONNECTION_STATE_CHANGED = EVENT_BASE + 6;
     private static final int EVENT_PROVISIONING_INFO_CHANGED = EVENT_BASE + 8;
-    private static final int EVENT_WFC_ACTIVATION_WITH_IWLAN_CONNECTION_REQUIRED = EVENT_BASE + 9;
     private static final int EVENT_IMS_REGISTRATION_STATE_CHANGED = EVENT_BASE + 10;
     private static final int EVENT_WIFI_RTT_STATUS_CHANGED = EVENT_BASE + 11;
     private static final int EVENT_SIP_DIALOG_SESSION_STATE_CHANGED = EVENT_BASE + 12;
@@ -68,7 +67,8 @@ class AccessNetworkEvaluator {
     protected final Context mContext;
     private final String mLogTag;
     private final int mNetCapability;
-    @VisibleForTesting protected final Handler mHandler;
+    @VisibleForTesting
+    protected final Handler mHandler;
     private final HandlerThread mHandlerThread;
     private final RestrictManager mRestrictManager;
     protected QnsCarrierConfigManager mConfigManager;
@@ -111,6 +111,8 @@ class AccessNetworkEvaluator {
     private QnsProvisioningListener.QnsProvisioningInfo mLastProvisioningInfo =
             new QnsProvisioningListener.QnsProvisioningInfo();
     private boolean mSipDialogSessionState = false;
+    private int mCachedTransportTypeForEmergencyInitialConnect =
+            AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
 
     AccessNetworkEvaluator(QnsComponents qnsComponents, int netCapability, int slotIndex) {
         mNetCapability = netCapability;
@@ -332,6 +334,8 @@ class AccessNetworkEvaluator {
         mSettingWfcRoamingMode = QnsUtils.getWfcMode(mQnsImsManager, true);
         mAllowIwlanForWfcActivation = false;
         mSipDialogSessionState = false;
+        mCachedTransportTypeForEmergencyInitialConnect =
+                AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
         log(
                 "WfcSettings. mWfcPlatformEnabled:"
                         + mWfcPlatformEnabled
@@ -368,8 +372,6 @@ class AccessNetworkEvaluator {
         }
 
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
-            mAltEventListener.registerTryWfcConnectionStateListener(
-                    mHandler, EVENT_WFC_ACTIVATION_WITH_IWLAN_CONNECTION_REQUIRED, null);
             if (mWifiBackhaulMonitor.isRttCheckEnabled()) {
                 mWifiBackhaulMonitor.registerForRttStatusChange(
                         mHandler, EVENT_WIFI_RTT_STATUS_CHANGED);
@@ -674,42 +676,70 @@ class AccessNetworkEvaluator {
                             "onEmergencyPreferredTransportTypeChanged transport:"
                                     + QnsConstants.transportTypeToString(transport));
                     if (mDataConnectionStatusTracker.isInactiveState()) {
-                        int accessNetwork;
-                        List<Integer> accessNetworkTypes = new ArrayList<>();
-                        if (transport == AccessNetworkConstants.TRANSPORT_TYPE_WLAN) {
-                            accessNetwork = AccessNetworkType.IWLAN;
-                            accessNetworkTypes.add(accessNetwork);
-                        } else {
-                            accessNetwork = mCellularAccessNetworkType;
-                            if (accessNetwork != AccessNetworkType.UNKNOWN) {
-                                accessNetworkTypes.add(accessNetwork);
-                            }
-                        }
-                        updateLastNotifiedQualifiedNetwork(accessNetworkTypes);
-                        notifyForQualifiedNetworksChanged(accessNetworkTypes);
+                        enforceNotifyQualifiedNetworksWithTransportType(transport);
+                    } else {
+                        log(
+                                "cache transportType for emergency: "
+                                        + QnsConstants.transportTypeToString(transport));
+                        mCachedTransportTypeForEmergencyInitialConnect = transport;
                     }
                 }
         );
     }
 
-    private void onDataConnectionStateChanged(
+    private void enforceNotifyQualifiedNetworksWithTransportType(
+            @AccessNetworkConstants.TransportType int transportType) {
+        List<Integer> accessNetworkTypes = new ArrayList<>();
+        if (transportType == AccessNetworkConstants.TRANSPORT_TYPE_WLAN) {
+            accessNetworkTypes.add(AccessNetworkType.IWLAN);
+        } else if (mCellularAccessNetworkType != AccessNetworkType.UNKNOWN) {
+            accessNetworkTypes.add(mCellularAccessNetworkType);
+        }
+        updateLastNotifiedQualifiedNetwork(accessNetworkTypes);
+        notifyForQualifiedNetworksChanged(accessNetworkTypes);
+    }
+
+    @VisibleForTesting
+    void onDataConnectionStateChanged(
             DataConnectionStatusTracker.DataConnectionChangedInfo info) {
         log("onDataConnectionStateChanged info:" + info);
         boolean needEvaluate = false;
         switch (info.getEvent()) {
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_DISCONNECTED:
-                needEvaluate = true;
-                initLastNotifiedQualifiedNetwork();
+                if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
+                    // If FWK guided emergency's transport type during data connected state, notify
+                    // the transport type when the data connection is disconnected.
+                    notifyCachedTransportTypeForEmergency();
+                } else {
+                    needEvaluate = true;
+                    initLastNotifiedQualifiedNetwork();
+                }
                 break;
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_CONNECTED:
                 mHandler.post(() -> onDataConnectionConnected(info.getTransportType()));
                 break;
             case DataConnectionStatusTracker.EVENT_DATA_CONNECTION_FAILED:
-                needEvaluate = true;
+                if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
+                    // If FWK guided emergency's transport type during data connecting state, notify
+                    // the transport type when the data connection is failed.
+                    notifyCachedTransportTypeForEmergency();
+                } else {
+                    needEvaluate = true;
+                }
                 break;
         }
         if (needEvaluate) {
             evaluate();
+        }
+    }
+
+    private void notifyCachedTransportTypeForEmergency() {
+        if (mCachedTransportTypeForEmergencyInitialConnect
+                != AccessNetworkConstants.TRANSPORT_TYPE_INVALID) {
+            enforceNotifyQualifiedNetworksWithTransportType(
+                    mCachedTransportTypeForEmergencyInitialConnect);
+            mCachedTransportTypeForEmergencyInitialConnect =
+                    AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
         }
     }
 
@@ -958,11 +988,10 @@ class AccessNetworkEvaluator {
 
     private boolean isAccessNetworkAllowed(int accessNetwork, int netCapability) {
         switch (netCapability) {
-            case NetworkCapabilities.NET_CAPABILITY_IMS:
-                return mConfigManager.isAccessNetworkAllowed(accessNetwork, netCapability);
             case NetworkCapabilities.NET_CAPABILITY_EIMS:
-                return mConfigManager.isAccessNetworkAllowed(
-                        accessNetwork, NetworkCapabilities.NET_CAPABILITY_IMS);
+            case NetworkCapabilities.NET_CAPABILITY_IMS:
+            case NetworkCapabilities.NET_CAPABILITY_XCAP:
+                return mConfigManager.isAccessNetworkAllowed(accessNetwork, netCapability);
             default:
                 if (accessNetwork == AccessNetworkType.UNKNOWN) {
                     return false;
@@ -1882,9 +1911,6 @@ class AccessNetworkEvaluator {
                     onDataConnectionStateChanged(
                             (DataConnectionStatusTracker.DataConnectionChangedInfo) ar.mResult);
                     break;
-                case EVENT_WFC_ACTIVATION_WITH_IWLAN_CONNECTION_REQUIRED:
-                    onTryWfcConnectionStateChanged((boolean) ar.mResult);
-                    break;
                 case EVENT_PROVISIONING_INFO_CHANGED:
                     onProvisioningInfoChanged(
                             (QnsProvisioningListener.QnsProvisioningInfo) ar.mResult);
@@ -2031,6 +2057,8 @@ class AccessNetworkEvaluator {
         pw.println(prefix + "mLastProvisioningInfo=" + mLastProvisioningInfo);
         pw.println(prefix + "mAccessNetworkSelectionPolicies=" + mAccessNetworkSelectionPolicies);
         pw.println(prefix + "mAnspPolicyMap=" + mAnspPolicyMap);
+        pw.println(prefix + "mCachedTransportTypeForEmergencyInitialConnect"
+                + mCachedTransportTypeForEmergencyInitialConnect);
         mRestrictManager.dump(pw, prefix + "  ");
     }
 
