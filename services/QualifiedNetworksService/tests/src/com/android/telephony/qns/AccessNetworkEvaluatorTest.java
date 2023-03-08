@@ -1042,6 +1042,7 @@ public class AccessNetworkEvaluatorTest extends QnsTest {
         waitForLastHandlerAction(mAne.mHandler);
         mLatch = new CountDownLatch(1);
         mAne.registerForQualifiedNetworksChanged(mHandler, QUALIFIED_NETWORKS_CHANGED);
+
         mAne.onEmergencyPreferredTransportTypeChanged(AccessNetworkConstants.TRANSPORT_TYPE_WLAN);
         waitForLastHandlerAction(mAne.mHandler);
         assertFalse(mLatch.await(100, TimeUnit.MILLISECONDS));
@@ -1062,29 +1063,49 @@ public class AccessNetworkEvaluatorTest extends QnsTest {
         waitForLastHandlerAction(mAne.mHandler);
         assertFalse(mLatch.await(500, TimeUnit.MILLISECONDS));
         assertNull(mQualifiedNetworksInfo);
+
+        mLatch = new CountDownLatch(1);
         mAne.onDataConnectionStateChanged(
                 new DataConnectionStatusTracker.DataConnectionChangedInfo(
                         EVENT_DATA_CONNECTION_DISCONNECTED, STATE_INACTIVE,
                         AccessNetworkConstants.TRANSPORT_TYPE_INVALID));
+        waitForLastHandlerAction(mAne.mHandler);
+        assertTrue(mLatch.await(100, TimeUnit.MILLISECONDS));
         assertTrue(
                 mQualifiedNetworksInfo
                         .getAccessNetworkTypes()
                         .contains(AccessNetworkConstants.AccessNetworkType.IWLAN));
 
+        QnsTelephonyListener.QnsTelephonyInfo info =
+                mMockQnsTelephonyListener.new QnsTelephonyInfo();
+        info.setCellularAvailable(true);
+        info.setCoverage(false);
+        info.setDataNetworkType(TelephonyManager.NETWORK_TYPE_LTE);
+        info.setVoiceNetworkType(TelephonyManager.NETWORK_TYPE_LTE);
+        info.setDataRegState(ServiceState.STATE_IN_SERVICE);
+        QnsTelephonyInfoIms infoIms =
+                mMockQnsTelephonyListener.new QnsTelephonyInfoIms(info, true, true, false, false);
+        mAne.onQnsTelephonyInfoChanged(infoIms);
         when(mDataConnectionStatusTracker.isInactiveState()).thenReturn(false);
         mQualifiedNetworksInfo = null;
+
         mLatch = new CountDownLatch(1);
-        mAne.onEmergencyPreferredTransportTypeChanged(AccessNetworkConstants.TRANSPORT_TYPE_WLAN);
+        mAne.onEmergencyPreferredTransportTypeChanged(AccessNetworkConstants.TRANSPORT_TYPE_WWAN);
+        waitForLastHandlerAction(mAne.mHandler);
         assertFalse(mLatch.await(500, TimeUnit.MILLISECONDS));
         assertNull(mQualifiedNetworksInfo);
+
+        mLatch = new CountDownLatch(1);
         mAne.onDataConnectionStateChanged(
                 new DataConnectionStatusTracker.DataConnectionChangedInfo(
                         EVENT_DATA_CONNECTION_FAILED, STATE_INACTIVE,
                         AccessNetworkConstants.TRANSPORT_TYPE_INVALID));
+        waitForLastHandlerAction(mAne.mHandler);
+        assertTrue(mLatch.await(100, TimeUnit.MILLISECONDS));
         assertTrue(
                 mQualifiedNetworksInfo
                         .getAccessNetworkTypes()
-                        .contains(AccessNetworkConstants.AccessNetworkType.IWLAN));
+                        .contains(AccessNetworkConstants.AccessNetworkType.EUTRAN));
     }
 
     @Test
