@@ -18,6 +18,7 @@ package com.android.telephony.qns;
 
 import static com.android.telephony.qns.DataConnectionStatusTracker.STATE_CONNECTED;
 import static com.android.telephony.qns.DataConnectionStatusTracker.STATE_HANDOVER;
+import static com.android.telephony.qns.QnsConstants.INVALID_ID;
 
 import android.annotation.IntDef;
 import android.net.NetworkCapabilities;
@@ -161,7 +162,9 @@ class RestrictManager {
     private QnsCallStatusTracker mQnsCallStatusTracker;
     private QnsCallStatusTracker.ActiveCallTracker mActiveCallTracker;
     private QnsImsManager mQnsImsManager;
+    private QnsTimer mQnsTimer;
     private WifiBackhaulMonitor mWifiBackhaulMonitor;
+    private QnsMetrics mQnsMetrics;
     private int mNetCapability;
     private int mSlotId;
     private int mTransportType = AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
@@ -173,6 +176,7 @@ class RestrictManager {
     private int mFallbackCounterOnDataConnectionFail;
     private boolean mIsRttStatusCheckRegistered = false;
     private int mLastDataConnectionTransportType;
+    private int mFallbackTimerId = -1;
     private boolean mIsTimerRunningOnDataConnectionFail = false;
     private Pair<Integer, Long> mDeferredThrottlingEvent = null;
 
@@ -182,6 +186,7 @@ class RestrictManager {
     @Annotation.CallState private int mCallState;
 
     private Map<Integer, RestrictInfo> mRestrictInfos = new ConcurrentHashMap<>();
+    private Map<Restriction, Integer> mRestrictionTimers = new ConcurrentHashMap<>();
 
     private class RestrictManagerHandler extends Handler {
         RestrictManagerHandler(Looper l) {
@@ -238,6 +243,9 @@ class RestrictManager {
                                     .getRestrictionMap()
                                     .get(restriction.mRestrictType)) {
                         releaseRestriction(transportType, restriction.mRestrictType);
+                        mQnsTimer.unregisterTimer(mRestrictionTimers
+                                .getOrDefault(restriction, INVALID_ID));
+                        mRestrictionTimers.remove(restriction);
                     }
                     break;
 
@@ -247,6 +255,7 @@ class RestrictManager {
                             "Initial Data Connection fail timer expired"
                                     + mIsTimerRunningOnDataConnectionFail);
 
+                    mQnsTimer.unregisterTimer(mFallbackTimerId);
                     if (mIsTimerRunningOnDataConnectionFail) {
                         int currTransportType = message.arg1;
                         fallbackToOtherTransportOnDataConnectionFail(currTransportType);
@@ -451,11 +460,13 @@ class RestrictManager {
         mTelephonyListener = qnsComponents.getQnsTelephonyListener(mSlotId);
         mQnsEventDispatcher = qnsComponents.getQnsEventDispatcher(mSlotId);
         mQnsCarrierConfigManager = qnsComponents.getQnsCarrierConfigManager(mSlotId);
+        mQnsTimer = qnsComponents.getQnsTimer();
         mHandler = new RestrictManagerHandler(loop);
         mNetCapability = netCapability;
         mDataConnectionStatusTracker = dcst;
         mQnsCallStatusTracker = qnsComponents.getQnsCallStatusTracker(mSlotId);
         mActiveCallTracker = qnsComponents.getQnsCallStatusTracker(mSlotId).getActiveCallTracker();
+        mQnsMetrics = qnsComponents.getQnsMetrics();
         mDataConnectionStatusTracker.registerDataConnectionStatusChanged(
                 mHandler, EVENT_DATA_CONNECTION_CHANGED);
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
@@ -518,6 +529,7 @@ class RestrictManager {
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
             mQnsImsManager.unregisterImsRegistrationStatusChanged(mHandler);
         }
+        mRestrictionTimers.clear();
     }
 
     private void onWfcModeChanged(int prefMode, @QnsConstants.CellularCoverage int coverage) {
@@ -776,9 +788,7 @@ class RestrictManager {
         mIsTimerRunningOnDataConnectionFail = false;
         mRetryCounterOnDataConnectionFail = 0;
 
-        if (mHandler.hasMessages(EVENT_INITIAL_DATA_CONNECTION_FAIL_RETRY_TIMER_EXPIRED)) {
-            mHandler.removeMessages(EVENT_INITIAL_DATA_CONNECTION_FAIL_RETRY_TIMER_EXPIRED);
-        }
+        mQnsTimer.unregisterTimer(mFallbackTimerId);
     }
 
     private void processDataConnectionDisconnected() {
@@ -916,7 +926,7 @@ class RestrictManager {
                             transportType,
                             0,
                             null);
-            mHandler.sendMessageDelayed(msg, (long) fallbackRetryTimer);
+            mFallbackTimerId = mQnsTimer.registerTimer(msg, fallbackRetryTimer);
             mIsTimerRunningOnDataConnectionFail = true;
         }
     }
@@ -1291,6 +1301,7 @@ class RestrictManager {
                 removeReleaseRestrictionMessage(restriction);
             }
             restrictionMap.remove(restriction.mRestrictType);
+            mRestrictionTimers.remove(restriction);
             needNotify = true;
         }
         if (needNotify && !skipNotify) {
@@ -1327,7 +1338,8 @@ class RestrictManager {
         Message msg =
                 mHandler.obtainMessage(EVENT_RELEASE_RESTRICTION, transportType, 0, restriction);
         long delayInMillis = restriction.mReleaseTime - SystemClock.elapsedRealtime();
-        mHandler.sendMessageDelayed(msg, delayInMillis);
+        int timerId = mQnsTimer.registerTimer(msg, delayInMillis);
+        mRestrictionTimers.put(restriction, timerId);
         Log.d(
                 mLogTag,
                 restrictTypeToString(restriction.mRestrictType)
@@ -1341,7 +1353,8 @@ class RestrictManager {
             Log.e(mLogTag, "removeReleaseRestrictionMessage restriction is null");
             return;
         }
-        mHandler.removeMessages(EVENT_RELEASE_RESTRICTION, restriction);
+        mQnsTimer.unregisterTimer(mRestrictionTimers.getOrDefault(restriction, INVALID_ID));
+        mRestrictionTimers.remove(restriction);
     }
 
     void registerRestrictInfoChanged(Handler h, int what) {
@@ -1440,6 +1453,9 @@ class RestrictManager {
         Log.d(mLogTag, "notifyRestrictInfoChanged");
         if (mRestrictInfoRegistrant != null) {
             mRestrictInfoRegistrant.notifyResult(mRestrictInfos);
+
+            // metrics
+            sendRestrictionsForMetrics();
         } else {
             Log.d(mLogTag, "notifyRestrictInfoChanged. no Registrant.");
         }
@@ -1683,5 +1699,25 @@ class RestrictManager {
                         + ", mCallState="
                         + QnsConstants.callStateToString(mCallState));
         pw.println(prefix + "mRestrictInfos=" + mRestrictInfos);
+    }
+
+    private void sendRestrictionsForMetrics() {
+        if (mNetCapability != NetworkCapabilities.NET_CAPABILITY_IMS) {
+            return;
+        }
+        ArrayList<Integer> wlanRestrictions =
+                new ArrayList<>(
+                        mRestrictInfos
+                                .get(AccessNetworkConstants.TRANSPORT_TYPE_WLAN)
+                                .getRestrictionMap()
+                                .keySet());
+        ArrayList<Integer> wwanRestrictions =
+                new ArrayList<>(
+                        mRestrictInfos
+                                .get(AccessNetworkConstants.TRANSPORT_TYPE_WLAN)
+                                .getRestrictionMap()
+                                .keySet());
+        mQnsMetrics.reportAtomForRestrictions(mNetCapability, mSlotId,
+                wlanRestrictions, wwanRestrictions, mQnsCarrierConfigManager.getCarrierId());
     }
 }
