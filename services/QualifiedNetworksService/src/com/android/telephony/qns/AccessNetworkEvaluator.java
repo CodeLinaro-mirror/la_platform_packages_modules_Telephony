@@ -26,6 +26,7 @@ import android.telephony.AccessNetworkConstants;
 import android.telephony.AccessNetworkConstants.AccessNetworkType;
 import android.telephony.TelephonyManager;
 import android.telephony.data.ApnSetting;
+import android.telephony.ims.ImsReasonInfo;
 import android.telephony.ims.ProvisioningManager;
 import android.util.Log;
 
@@ -61,6 +62,7 @@ class AccessNetworkEvaluator {
     private static final int EVENT_IMS_REGISTRATION_STATE_CHANGED = EVENT_BASE + 10;
     private static final int EVENT_WIFI_RTT_STATUS_CHANGED = EVENT_BASE + 11;
     private static final int EVENT_SIP_DIALOG_SESSION_STATE_CHANGED = EVENT_BASE + 12;
+    private static final int EVENT_IMS_CALL_DISCONNECT_CAUSE_CHANGED = EVENT_BASE + 13;
     private static final int EVALUATE_SPECIFIC_REASON_NONE = 0;
     private static final int EVALUATE_SPECIFIC_REASON_IWLAN_DISABLE = 1;
     private static final int EVALUATE_SPECIFIC_REASON_DATA_DISCONNECTED = 2;
@@ -83,11 +85,13 @@ class AccessNetworkEvaluator {
     protected IwlanNetworkStatusTracker mIwlanNetworkStatusTracker;
     protected DataConnectionStatusTracker mDataConnectionStatusTracker;
     protected QnsEventDispatcher mQnsEventDispatcher;
-    protected AlternativeEventListener mAltEventListener;
     protected QnsCallStatusTracker mCallStatusTracker;
     protected QnsProvisioningListener mQnsProvisioningListener;
     protected QnsImsManager mQnsImsManager;
     protected WifiBackhaulMonitor mWifiBackhaulMonitor;
+    protected QnsTelephonyListener mQnsTelephonyListener;
+    // for metric
+    protected QnsMetrics mQnsMetrics;
 
     protected int mCellularAccessNetworkType = AccessNetworkType.UNKNOWN;
     protected boolean mCellularAvailable = false;
@@ -117,6 +121,7 @@ class AccessNetworkEvaluator {
     private boolean mSipDialogSessionState = false;
     private int mCachedTransportTypeForEmergencyInitialConnect =
             AccessNetworkConstants.TRANSPORT_TYPE_INVALID;
+    private int mLastEvaluateSpecificReason = EVALUATE_SPECIFIC_REASON_NONE;
 
     AccessNetworkEvaluator(QnsComponents qnsComponents, int netCapability, int slotIndex) {
         mNetCapability = netCapability;
@@ -143,7 +148,6 @@ class AccessNetworkEvaluator {
         Executor executor = new QnsUtils.QnsExecutor(mHandler);
 
         mConfigManager = mQnsComponents.getQnsCarrierConfigManager(mSlotIndex);
-        mAltEventListener = mQnsComponents.getAlternativeEventListener(mSlotIndex);
         mCallStatusTracker = mQnsComponents.getQnsCallStatusTracker(mSlotIndex);
         mQnsProvisioningListener = mQnsComponents.getQnsProvisioningListener(mSlotIndex);
         mIwlanNetworkStatusTracker = mQnsComponents.getIwlanNetworkStatusTracker();
@@ -155,6 +159,8 @@ class AccessNetworkEvaluator {
                         mNetCapability);
         mQnsImsManager = mQnsComponents.getQnsImsManager(mSlotIndex);
         mWifiBackhaulMonitor = mQnsComponents.getWifiBackhaulMonitor(mSlotIndex);
+        mQnsTelephonyListener = mQnsComponents.getQnsTelephonyListener(mSlotIndex);
+        mQnsMetrics = mQnsComponents.getQnsMetrics();
 
         // Pre-Conditions
         mCellularNetworkStatusTracker = mQnsComponents.getCellularNetworkStatusTracker(mSlotIndex);
@@ -208,11 +214,12 @@ class AccessNetworkEvaluator {
         mIwlanNetworkStatusTracker = mQnsComponents.getIwlanNetworkStatusTracker();
         mDataConnectionStatusTracker = dataConnectionStatusTracker;
         mQnsEventDispatcher = mQnsComponents.getQnsEventDispatcher(mSlotIndex);
-        mAltEventListener = mQnsComponents.getAlternativeEventListener(mSlotIndex);
         mCallStatusTracker = mQnsComponents.getQnsCallStatusTracker(mSlotIndex);
         mQnsProvisioningListener = mQnsComponents.getQnsProvisioningListener(mSlotIndex);
         mQnsImsManager = mQnsComponents.getQnsImsManager(mSlotIndex);
         mWifiBackhaulMonitor = mQnsComponents.getWifiBackhaulMonitor(mSlotIndex);
+        mQnsTelephonyListener = mQnsComponents.getQnsTelephonyListener(mSlotIndex);
+        mQnsMetrics = mQnsComponents.getQnsMetrics();
         mHandlerThread =
                 new HandlerThread(AccessNetworkEvaluator.class.getSimpleName() + mNetCapability);
         mHandlerThread.start();
@@ -248,6 +255,7 @@ class AccessNetworkEvaluator {
                         isAllowed(AccessNetworkConstants.TRANSPORT_TYPE_WWAN))) {
             mHandler.post(this::evaluate);
         }
+        mLastEvaluateSpecificReason = EVALUATE_SPECIFIC_REASON_NONE;
     }
 
     void close() {
@@ -327,6 +335,9 @@ class AccessNetworkEvaluator {
         QualifiedNetworksInfo info = new QualifiedNetworksInfo(mNetCapability, accessNetworkTypes);
         QnsAsyncResult ar = new QnsAsyncResult(null, info, null);
         mQualifiedNetworksChangedRegistrants.notifyRegistrants(ar);
+
+        // metrics
+        sendMetricsForQualifiedNetworks(info);
     }
 
     private void initSettings() {
@@ -383,6 +394,10 @@ class AccessNetworkEvaluator {
         }
         mQnsProvisioningListener.registerProvisioningItemInfoChanged(
                 mHandler, EVENT_PROVISIONING_INFO_CHANGED, null, true);
+        if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
+            mQnsTelephonyListener.registerImsCallDropDisconnectCauseListener(
+                    mHandler, EVENT_IMS_CALL_DISCONNECT_CAUSE_CHANGED, null);
+        }
         List<Integer> events = new ArrayList<>();
         events.add(QnsEventDispatcher.QNS_EVENT_WFC_ENABLED);
         events.add(QnsEventDispatcher.QNS_EVENT_WFC_DISABLED);
@@ -418,6 +433,9 @@ class AccessNetworkEvaluator {
             if (mWifiBackhaulMonitor.isRttCheckEnabled()) {
                 mWifiBackhaulMonitor.unRegisterForRttStatusChange(mHandler);
             }
+        }
+        if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS) {
+            mQnsTelephonyListener.unregisterImsCallDropDisconnectCauseListener(mHandler);
         }
         mQnsProvisioningListener.unregisterProvisioningItemInfoChanged(mHandler);
         mQnsEventDispatcher.unregisterEvent(mHandler);
@@ -522,7 +540,9 @@ class AccessNetworkEvaluator {
 
     protected void onIwlanNetworkStatusChanged(IwlanAvailabilityInfo info) {
         if (info != null) {
-            mIwlanAvailable = info.getIwlanAvailable();
+            if (mIwlanAvailable != info.getIwlanAvailable()) {
+                mIwlanAvailable = info.getIwlanAvailable();
+            }
             mIsCrossWfc = info.isCrossWfc();
             log("onIwlanNetworkStatusChanged IwlanAvailable:" + mIwlanAvailable);
             if (info.getNotifyIwlanDisabled()) {
@@ -660,6 +680,10 @@ class AccessNetworkEvaluator {
                 && callType == QnsConstants.CALL_TYPE_EMERGENCY) {
             if (!mDataConnectionStatusTracker.isActiveState()) return;
         }
+
+        // metrics
+        sendMetricsForCallTypeChanged(mCallType, callType);
+
         mCallType = callType;
         mRestrictManager.setQnsCallType(mCallType);
         log("onSetCallType CallType:" + mCallType);
@@ -754,6 +778,10 @@ class AccessNetworkEvaluator {
                 }
                 break;
         }
+
+        // metrics
+        sendMetricsForDataConnectionChanged(info);
+
         if (needEvaluate) {
             evaluate(evaluateSpecificReason);
         }
@@ -914,6 +942,26 @@ class AccessNetworkEvaluator {
             mSipDialogSessionState = isActive;
             log("onSipDialogSessionStateChanged isActive:" + isActive);
             evaluate();
+        }
+    }
+
+    protected void onImsCallDisconnectCauseChanged(ImsReasonInfo imsReasonInfo) {
+        if (imsReasonInfo == null) {
+            return;
+        }
+        if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS
+                && imsReasonInfo.getCode() == ImsReasonInfo.CODE_MEDIA_NO_DATA) {
+            log(
+                    "onImsCallDisconnectCauseChanged: iwlanAvailable="
+                            + mIwlanAvailable
+                            + " cellularAvailable="
+                            + mCellularAvailable
+                            + " imsReasonInfo="
+                            + imsReasonInfo);
+            if (mIwlanAvailable && mCellularAvailable) {
+                // metrics
+                sendMetricsForImsCallDropStats();
+            }
         }
     }
 
@@ -1194,6 +1242,7 @@ class AccessNetworkEvaluator {
             if (DBG) log("ANE is not initialized yet.");
             return;
         }
+        mLastEvaluateSpecificReason = specificReason;
         log("evaluate reason:" + evaluateSpecificReasonToString(specificReason));
         if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_EIMS) {
             if (!mDataConnectionStatusTracker.isActiveState()) {
@@ -1377,7 +1426,7 @@ class AccessNetworkEvaluator {
             return true;
         } else {
             if (mNetCapability == NetworkCapabilities.NET_CAPABILITY_IMS
-                    && mCallType == QnsConstants.CALL_TYPE_IDLE) {
+                    && mCallStatusTracker.isCallIdle(NetworkCapabilities.NET_CAPABILITY_IMS)) {
                 // Telephony will make new connection with preferred AccessNetwork
                 log("handover is not allowed. but need to move to target Transport.");
                 return true;
@@ -1954,6 +2003,9 @@ class AccessNetworkEvaluator {
                 case EVENT_SIP_DIALOG_SESSION_STATE_CHANGED:
                     onSipDialogSessionStateChanged((boolean) ar.mResult);
                     break;
+                case EVENT_IMS_CALL_DISCONNECT_CAUSE_CHANGED:
+                    onImsCallDisconnectCauseChanged((ImsReasonInfo) ar.mResult);
+                    break;
                 case QnsEventDispatcher.QNS_EVENT_WFC_ENABLED:
                     onWfcEnabledChanged(true, false);
                     break;
@@ -2099,4 +2151,50 @@ class AccessNetworkEvaluator {
     boolean getSipDialogSessionState() {
         return mSipDialogSessionState;
     }
+
+    private void sendMetricsForQualifiedNetworks(QualifiedNetworksInfo info) {
+        if (!mCellularAvailable
+                || !mIwlanAvailable
+                || mCellularAccessNetworkType == AccessNetworkType.UNKNOWN
+                || mLastEvaluateSpecificReason == EVALUATE_SPECIFIC_REASON_DATA_DISCONNECTED) {
+            // b/268557926, decided to cut off if WWAN and WLAN are not in contention.
+            return;
+        }
+        mQnsMetrics.reportAtomForQualifiedNetworks(
+                info,
+                mSlotIndex,
+                mDataConnectionStatusTracker.getLastTransportType(),
+                mCoverage,
+                mSettingWfcEnabled,
+                mSettingWfcRoamingEnabled,
+                mSettingWfcMode,
+                mSettingWfcRoamingMode,
+                mCellularAccessNetworkType,
+                mIwlanAvailable,
+                mIsCrossWfc,
+                mRestrictManager,
+                mCellularQualityMonitor,
+                mWifiQualityMonitor,
+                mCallType);
+    }
+
+    private void sendMetricsForCallTypeChanged(int oldCallType, int newCallType) {
+        int transportTypeOfCall = mDataConnectionStatusTracker.getLastTransportType();
+        mQnsMetrics.reportAtomForCallTypeChanged(mNetCapability, mSlotIndex,
+                oldCallType, newCallType, mRestrictManager, transportTypeOfCall);
+    }
+
+    private void sendMetricsForDataConnectionChanged(
+            DataConnectionStatusTracker.DataConnectionChangedInfo info) {
+        mQnsMetrics.reportAtomForDataConnectionChanged(
+                mNetCapability, mSlotIndex, info, mConfigManager.getCarrierId());
+    }
+
+    private void sendMetricsForImsCallDropStats() {
+        int transportTypeOfCall = mDataConnectionStatusTracker.getLastTransportType();
+        mQnsMetrics.reportAtomForImsCallDropStats(mNetCapability, mSlotIndex, mRestrictManager,
+                mCellularQualityMonitor, mWifiQualityMonitor, transportTypeOfCall,
+                mCellularAccessNetworkType);
+    }
+
 }
