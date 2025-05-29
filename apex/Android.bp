@@ -18,14 +18,14 @@ package {
 }
 
 apex_key {
-    name: "com.android.telephony.key",
-    public_key: "com.android.telephony.avbpubkey",
-    private_key: "com.android.telephony.pem",
+    name: "com.android.telephony2.key",
+    public_key: "com.android.telephony2.avbpubkey",
+    private_key: "com.android.telephony2.pem",
 }
 
 android_app_certificate {
-    name: "com.android.telephony.certificate",
-    certificate: "com.android.telephony",
+    name: "com.android.telephony2.certificate",
+    certificate: "com.android.telephony2",
 }
 
 apex {
@@ -35,16 +35,16 @@ apex {
         false: false,
     }),
 
-    name: "com.android.telephony",
+    name: "com.android.telephony2",
     manifest: "manifest.json",
-    file_contexts: ":com.android.telephony-file_contexts",
-    key: "com.android.telephony.key",
-    certificate: ":com.android.telephony.certificate",
+    file_contexts: ":com.android.telephony2-file_contexts",
+    key: "com.android.telephony2.key",
+    certificate: ":com.android.telephony2.certificate",
     defaults: ["b-launched-apex-module"],
     bootclasspath_fragments: ["com.android.telephony-bootclasspath-fragment"],
 }
 
-// Encapsulate the contributions made by the com.android.telephony to the bootclasspath.
+// Encapsulate the contributions made by the com.android.telephony2 to the bootclasspath.
 bootclasspath_fragment {
     // This fragment will be enabled using release_telephony_module flag
     enabled: select(release_flag("RELEASE_TELEPHONY_MODULE"), {
@@ -54,7 +54,7 @@ bootclasspath_fragment {
 
     name: "com.android.telephony-bootclasspath-fragment",
     contents: ["framework-telephony"],
-    apex_available: ["com.android.telephony"],
+    apex_available: ["com.android.telephony2"],
     hidden_api: {
         split_packages: ["*"], // TODO(b/409547011) be more specific
     },
@@ -88,6 +88,6 @@ sdk {
     apexes: [
         // Adds exportable dependencies of the APEX to the sdk,
         // e.g. *classpath_fragments.
-        "com.android.telephony",
+        "com.android.telephony2",
     ],
 }

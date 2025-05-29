@@ -31,7 +31,7 @@ java_sdk_library {
     defaults: ["framework-module-defaults"],
     permitted_packages: ["android.telephony"],
     apex_available: [
-        "com.android.telephony",
+        "com.android.telephony2",
     ],
     min_sdk_version: "36",
 }
