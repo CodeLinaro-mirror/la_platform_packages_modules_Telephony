@@ -19,7 +19,7 @@ package {
 aconfig_declarations {
     name: "telephony_aconfig_flags",
     package: "com.android.telephony.flags",
-    container: "com.android.telephony2",
+    container: "com.android.telephonycore",
     srcs: ["telephony_flags.aconfig"],
     exportable: true,
 }
@@ -30,7 +30,8 @@ java_aconfig_library {
     min_sdk_version: "36",
     defaults: ["framework-minus-apex-aconfig-java-defaults"],
     apex_available: [
-        "com.android.telephony2",
+        "//apex_available:platform",
+        "com.android.telephonycore",
     ],
     visibility: [
         "//packages/modules/Telephony:__subpackages__",
