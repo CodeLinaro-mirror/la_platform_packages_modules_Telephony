@@ -9,12 +9,34 @@ EqualsAndHashCode: android.telecom.CallAudioState#equals(Object):
     Must override both equals and hashCode; missing one in android.telecom.CallAudioState
 
 
+InvalidHideDocTag: /src/out/soong/.temp/sbox/7d65d24100a2e43e12dfc194babf3dc41367c11a/frameworks/libs/modules-utils/java/android/annotation/Hide.java:
+    Invalid @hide syntax, it is ignored as it must be a block tag
+InvalidHideDocTag: PsiDocComment:
+    Invalid @hide syntax, it is ignored as it must be a block tag
+
+
 MissingNullability: android.telecom.CallScreeningService#onUnbind(android.content.Intent) parameter #0:
     Missing nullability on parameter `intent` in method `onUnbind`
+MissingNullability: android.telecom.ConnectionService#answer(String) parameter #0:
+    Missing nullability on parameter `callId` in method `answer`
+MissingNullability: android.telecom.ConnectionService#answerVideo(String, int) parameter #0:
+    Missing nullability on parameter `callId` in method `answerVideo`
 MissingNullability: android.telecom.ConnectionService#onUnbind(android.content.Intent) parameter #0:
     Missing nullability on parameter `intent` in method `onUnbind`
 MissingNullability: android.telecom.InCallService#onUnbind(android.content.Intent) parameter #0:
     Missing nullability on parameter `intent` in method `onUnbind`
+
+
+OnNameExpected: android.telecom.ConnectionService#answer(String):
+    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
+OnNameExpected: android.telecom.ConnectionService#answerVideo(String, int):
+    If implemented by developer, should follow the on<Something> style; otherwise consider marking final
+
+
+ProtectedMember: android.telecom.ConnectionService#answer(String):
+    Protected methods not allowed; must be public: method android.telecom.ConnectionService.answer(String)}
+ProtectedMember: android.telecom.ConnectionService#answerVideo(String, int):
+    Protected methods not allowed; must be public: method android.telecom.ConnectionService.answerVideo(String,int)}
 
 
 RemovedDeprecatedMethod: android.telecom.Connection#requestBluetoothAudio(android.bluetooth.BluetoothDevice):
@@ -47,3 +69,9 @@ RequiresPermission: android.telecom.TelecomManager#showInCallScreen(boolean):
     Method 'showInCallScreen' documentation duplicates auto-generated documentation by @RequiresPermission. If the permissions are only required under certain circumstances use conditional=true to suppress the auto-documentation
 RequiresPermission: android.telecom.TelecomManager#silenceRinger():
     Method 'silenceRinger' documentation duplicates auto-generated documentation by @RequiresPermission. If the permissions are only required under certain circumstances use conditional=true to suppress the auto-documentation
+
+
+UnflaggedApi: android.telecom.ConnectionService#answer(String):
+    New API must be flagged with @FlaggedApi: method android.telecom.ConnectionService.answer(String)
+UnflaggedApi: android.telecom.ConnectionService#answerVideo(String, int):
+    New API must be flagged with @FlaggedApi: method android.telecom.ConnectionService.answerVideo(String,int)

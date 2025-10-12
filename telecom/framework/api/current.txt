@@ -40,6 +40,8 @@ package android.telecom {
     method public void stopDtmfTone();
     method public void stopRtt();
     method public void swapConference();
+    method @FlaggedApi("android.telecom.flags.explicit_call_transfer") public void transfer(@NonNull android.net.Uri, boolean);
+    method @FlaggedApi("android.telecom.flags.explicit_call_transfer") public void transfer(@NonNull android.telecom.Call);
     method public void unhold();
     method public void unregisterCallback(android.telecom.Call.Callback);
     field @FlaggedApi("com.android.server.telecom.flags.enable_audio_processing_use_case") public static final int AUDIO_PROCESSING_USE_CASE_ASK_TO_HOLD = 3; // 0x3
@@ -49,6 +51,7 @@ package android.telecom {
     field @Deprecated public static final String AVAILABLE_PHONE_ACCOUNTS = "selectPhoneAccountAccounts";
     field public static final String EVENT_CLEAR_DIAGNOSTIC_MESSAGE = "android.telecom.event.CLEAR_DIAGNOSTIC_MESSAGE";
     field public static final String EVENT_DISPLAY_DIAGNOSTIC_MESSAGE = "android.telecom.event.DISPLAY_DIAGNOSTIC_MESSAGE";
+    field @FlaggedApi("android.telecom.flags.phone_account_changed") public static final String EVENT_PHONE_ACCOUNT_CHANGED = "android.telecom.event.PHONE_ACCOUNT_CHANGED";
     field @FlaggedApi("com.android.server.telecom.flags.business_call_composer") public static final String EXTRA_ASSERTED_DISPLAY_NAME = "android.telecom.extra.ASSERTED_DISPLAY_NAME";
     field public static final String EXTRA_DIAGNOSTIC_MESSAGE = "android.telecom.extra.DIAGNOSTIC_MESSAGE";
     field public static final String EXTRA_DIAGNOSTIC_MESSAGE_ID = "android.telecom.extra.DIAGNOSTIC_MESSAGE_ID";
@@ -677,6 +680,8 @@ package android.telecom {
     method public final void addConference(android.telecom.Conference);
     method @FlaggedApi("com.android.server.telecom.flags.reuse_original_conn_remote_conf_api") public final void addConferenceFromConnection(@NonNull android.telecom.Conference, @NonNull android.telecom.Connection);
     method public final void addExistingConnection(android.telecom.PhoneAccountHandle, android.telecom.Connection);
+    method protected void answer(String);
+    method protected void answerVideo(String, int);
     method public final void conferenceRemoteConnections(android.telecom.RemoteConnection, android.telecom.RemoteConnection);
     method public final void connectionServiceFocusReleased();
     method @Nullable public final android.telecom.RemoteConference createRemoteIncomingConference(@Nullable android.telecom.PhoneAccountHandle, @Nullable android.telecom.ConnectionRequest);
