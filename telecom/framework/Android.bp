@@ -94,10 +94,14 @@ java_sdk_library {
     ],
     srcs: [
         ":framework-telecom-aidl-export-sources",
+        ":framework-telecom-aidl-internal-sources",
         ":framework-telecom-internal-sources",
     ],
     visibility: [
         "//visibility:public",
+    ],
+    impl_library_visibility: [
+        "//packages/services/Telecomm",
     ],
     aidl: {
         include_dirs: [
@@ -137,7 +141,10 @@ java_sdk_library {
         "com.android.server.telecom",
     ],
     min_sdk_version: "36",
-    aconfig_declarations: ["telecom_module_flags"],
+    aconfig_declarations: [
+        "telecom_module_flags",
+        "telecom_bugfix_flags",
+    ],
 }
 
 platform_compat_config {
