@@ -8,6 +8,7 @@ container: "com.android.telephonycore"
 flag {
   name: "enable_audio_processing_use_case"
   namespace: "telecom"
+  is_exported: true
   description: "Introduce audio processing use case to improve call state synchronization."
   bug: "411205001"
   metadata {
@@ -147,6 +148,7 @@ flag {
 flag {
   name: "move_get_tty_mode_to_telephony_manager"
   namespace: "telecom"
+  is_exported: true
   description: "Moving getTTYMode to TelephonyManager as part of Telecom mainline modularization"
   bug: "433987834"
 }
@@ -155,6 +157,7 @@ flag {
 flag {
   name: "call_details_get_associated_user_api2"
   namespace: "telecom"
+  is_exported: true
   description: "Adds a UserHandle to the Call Details"
   bug: "408470449"
   metadata {

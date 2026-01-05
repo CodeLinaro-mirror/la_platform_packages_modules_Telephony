@@ -11,3 +11,58 @@ container: "com.android.telephonycore"
        purpose: PURPOSE_BUGFIX
    }
  }
+
+# OWNER=tjstuart TARGET=26Q1
+flag {
+  name: "disconnect_on_timeout_while_disconnecting"
+  namespace: "telecom"
+  description: "When a call is disconnecting, if the disconnect transaction times out, force disconnect the call."
+  bug: "437864306"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
+# OWNER=pmadapurmath TARGET=26Q2
+flag {
+  name: "skip_audio_update_to_ics"
+  namespace: "telecom"
+  description: "If we're in unfocused state with no calls (or all disconnected) we should skip sending an audio state update to the ICS."
+  bug: "459266282"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
+# OWNER=tjstuart TARGET=26Q2
+flag {
+  name: "voip_background_activity_launch_fix"
+  namespace: "telecom"
+  description: "Fixes a bug where voip apps could not launch InCall UI when calls were answered from a bluetooth surface"
+  bug: "375692816"
+  metadata {
+       purpose: PURPOSE_BUGFIX
+  }
+}
+
+# OWNER=pmadapurmath TARGET=26Q2
+flag {
+  name: "quick_responses_backup"
+  namespace: "telecom"
+  description: "Support backup/restore for quick responses"
+  bug: "458170745"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
+# OWNER=gargakash TARGET=26Q2
+flag {
+  name: "use_are_same_phone_number"
+  namespace: "telecom"
+  description: "Use PhoneNumberUtils.areSamePhoneNumber instead of compare"
+  bug: "451863406"
+  metadata {
+    purpose: PURPOSE_BUGFIX
+  }
+}

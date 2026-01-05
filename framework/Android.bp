@@ -47,10 +47,30 @@ java_library {
     ],
 }
 
+java_defaults {
+    name: "framework-telephony-optimize-defaults",
+    optimize: {
+        enabled: select(release_flag("RELEASE_TELEPHONY_MODULE_FRAMEWORK_OPTIMIZATION"), {
+            true: true,
+            default: false,
+        }),
+        shrink: true,
+        proguard_compatibility: false,
+        proguard_flags_files: [
+            "proguard.flags",
+        ],
+        include: "r8-include.txt",
+    },
+    dxflags: ["--debug"],
+}
+
 java_sdk_library {
     name: "framework-telephony",
     srcs: [":framework-telephony-module-sources"],
-    defaults: ["framework-module-defaults"],
+    defaults: [
+        "framework-module-defaults",
+        "framework-telephony-optimize-defaults",
+    ],
     permitted_packages: [
         "android.telephony",
         "com.android.telephony",
@@ -59,10 +79,15 @@ java_sdk_library {
     apex_available: [
         "com.android.telephonycore",
     ],
+    libs: [
+        "framework-connectivity.stubs.module_lib",
+        "androidx.annotation_annotation",
+    ],
     static_libs: [
         "telephony_aconfig_flags_lib",
         "framework-telephony-aidl-stubs",
         "telephony_libphonenumber_nogeocoder",
+        "service-entitlement",
     ],
     min_sdk_version: "36",
     impl_library_visibility: [
@@ -70,12 +95,18 @@ java_sdk_library {
         "//packages/modules/Telephony:__subpackages__",
     ],
     jarjar_rules: "jarjar-rules.txt",
+    lint: {
+        baseline_filename: "lint-baseline2.xml",
+    },
 }
 
 java_sdk_library {
     name: "framework-platformtelephony",
     srcs: [":framework-telephony-module-sources"],
-    defaults: ["framework-non-updatable-unbundled-defaults"],
+    defaults: [
+        "framework-non-updatable-unbundled-defaults",
+        "framework-telephony-optimize-defaults",
+    ],
     permitted_packages: [
         "android.telephony",
         "com.android.telephony",
@@ -84,10 +115,15 @@ java_sdk_library {
     apex_available: [
         "//apex_available:platform",
     ],
+    libs: [
+        "framework-connectivity.stubs.module_lib",
+        "androidx.annotation_annotation",
+    ],
     static_libs: [
         "telephony_aconfig_flags_lib",
         "framework-telephony-aidl-stubs",
         "telephony_libphonenumber_nogeocoder",
+        "service-entitlement",
     ],
     min_sdk_version: "36",
     impl_library_visibility: [
@@ -95,6 +131,9 @@ java_sdk_library {
         "//packages/modules/Telephony:__subpackages__",
     ],
     jarjar_rules: "jarjar-rules.txt",
+    lint: {
+        baseline_filename: "lint-baseline.xml",
+    },
 }
 
 platform_compat_config {
