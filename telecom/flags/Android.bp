@@ -41,6 +41,10 @@ java_aconfig_library {
     name: "telecom_module_bugfix_flags-java",
     defaults: ["framework-minus-apex-aconfig-java-defaults"],
     min_sdk_version: "36",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.telephonycore",
+    ],
     aconfig_declarations: "telecom_bugfix_flags",
 }
 
@@ -49,9 +53,11 @@ java_aconfig_library {
     defaults: ["framework-minus-apex-aconfig-java-defaults"],
     min_sdk_version: "30",
     apex_available: [
+        "//apex_available:platform",
         "com.android.telephonycore",
     ],
     aconfig_declarations: "telecom_module_flags",
+    preserve_legacy_impl_interface: true,
 }
 
 java_aconfig_library {
@@ -64,4 +70,5 @@ java_aconfig_library {
     ],
     aconfig_declarations: "telecom_module_flags",
     mode: "exported",
+    preserve_legacy_impl_interface: true,
 }

@@ -1,0 +1,115 @@
+// Copyright (C) 2025 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+java_library {
+    name: "service-telecom-lib",
+    defaults: [
+        "framework-system-server-module-defaults",
+    ],
+    apex_available: [
+        "com.android.telephonycore",
+        "//apex_available:platform",
+    ],
+    srcs: [
+        ":service-telecom-internal-srcs",
+    ],
+    aidl: {
+        include_dirs: [
+            "frameworks/native/aidl/gui", // For Surface.java
+            "frameworks/libs/modules-utils/java", // ParceledListSlice
+        ],
+    },
+    libs: [
+        "framework-permission.stubs.module_lib",
+        "framework-permission-s.stubs.module_lib",
+        "framework-telecom-pre-jarjar",
+        "unsupportedappusage",
+        "androidx.annotation_annotation",
+        "androidx.core_core",
+        "framework-bluetooth.stubs.module_lib",
+        "framework-connectivity.stubs.module_lib",
+        "framework-connectivity-t.stubs.module_lib",
+        "framework-statsd.stubs.module_lib",
+        "framework-configinfrastructure.stubs.module_lib",
+        "framework-location.stubs.module_lib",
+        "modules-utils-handlerexecutor",
+        "telecom-proto-enums",
+        "modules-utils-build",
+        "modules-utils-infra",
+    ],
+    static_libs: [
+        "modules-utils-binary-xml",
+        "android.multiuser.flags-aconfig-java-export",
+        "android.provider.flags-exported-aconfig-java",
+        "android.media.audio-aconfig-exported-java",
+        "PlatformProperties",
+        "telecom-proto",
+        "telecom-resources",
+        "telecom_module_bugfix_flags-java",
+        "modules-utils-locallog",
+        "modules-utils-statemachine",
+        "telephony_flags_core_java_lib",
+        "modules-utils-shell-command-handler",
+        "modules-utils-fastxmlserializer",
+        "modules-utils-preconditions",
+    ],
+    min_sdk_version: "36",
+}
+
+java_sdk_library {
+    name: "service-telecom",
+    defaults: [
+        "framework-system-server-module-defaults",
+    ],
+    srcs: [
+        ":service-telecom-api-internal-srcs",
+    ],
+    libs: [
+        "framework-permission.stubs.module_lib",
+        "framework-permission-s.stubs.module_lib",
+        "framework-telecom-pre-jarjar",
+    ],
+    stub_only_libs: [
+        "framework-telecom-pre-jarjar",
+    ],
+    static_libs: [
+        "telecom_module_bugfix_flags-java",
+        "telephony_flags_core_java_lib",
+    ],
+    apex_available: [
+        "com.android.telephonycore",
+        "//apex_available:platform",
+    ],
+    impl_library_visibility: [
+        "//packages/modules/Telephony:__subpackages__",
+        "//packages/services/Telecomm",
+    ],
+    impl_only_libs: [
+        "androidx.annotation_annotation",
+    ],
+    impl_only_static_libs: [
+        "service-telecom-lib",
+    ],
+    exclude_kotlinc_generated_files: true,
+    min_sdk_version: "36",
+    jarjar_rules: "jarjar-rules.txt",
+    api_packages: [
+        "android.telecom.service",
+    ],
+    permitted_packages: [
+        "android.telecom",
+        "com.android.server.telecom",
+        "com.android.internal.telecom",
+    ],
+}
