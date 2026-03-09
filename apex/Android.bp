@@ -28,11 +28,22 @@ android_app_certificate {
     certificate: "com.android.telephonycore",
 }
 
+// Certificate for the TelecomUi APK in APEX.
+android_app_certificate {
+    name: "com.android.telecomui.certificate",
+    certificate: "com.android.telecomui",
+}
+
 apex {
     // This apex will be enabled using release_telephony_module flag
     enabled: select(release_flag("RELEASE_TELEPHONY_MODULE"), {
         true: true,
         false: false,
+    }),
+
+    compat_configs: select(release_flag("RELEASE_TELECOM_MAINLINE_MODULE"), {
+        true: ["framework-telecom-compat-config"],
+        default: [],
     }),
 
     name: "com.android.telephonycore",
@@ -41,7 +52,14 @@ apex {
     key: "com.android.telephonycore.key",
     certificate: ":com.android.telephonycore.certificate",
     defaults: ["b-launched-apex-module"],
-    apps: ["TelecomUi"],
+    apps: select(release_flag("RELEASE_TELECOM_MAINLINE_MODULE"), {
+        true: ["TelecomUi"],
+        default: [],
+    }),
+    prebuilts: select(release_flag("RELEASE_TELECOM_MAINLINE_MODULE"), {
+        true: ["com.android.server.telecomui-default-permissions.xml"],
+        default: [],
+    }),
     bootclasspath_fragments: ["com.android.telephony-bootclasspath-fragment"],
     systemserverclasspath_fragments: select(release_flag("RELEASE_TELECOM_MAINLINE_MODULE"), {
         true: ["com.android.telephony-systemserverclasspath-fragment"],
