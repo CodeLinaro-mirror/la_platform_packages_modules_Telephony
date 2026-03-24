@@ -66,6 +66,9 @@ java_library {
         "modules-utils-preconditions",
     ],
     min_sdk_version: "36",
+    lint: {
+        baseline_filename: "lint-baseline.xml",
+    },
 }
 
 java_sdk_library {
@@ -76,6 +79,9 @@ java_sdk_library {
     srcs: [
         ":service-telecom-api-internal-srcs",
     ],
+    dex_preopt: {
+        profile: "art-profile",
+    },
     libs: [
         "framework-permission.stubs.module_lib",
         "framework-permission-s.stubs.module_lib",
