@@ -50,6 +50,7 @@ java_library {
         "ims-ext-common",
     ],
     static_libs: [
+        "android.app.privatecompute.flags-aconfig-java-export",
         "modules-utils-binary-xml",
         "android.multiuser.flags-aconfig-java-export",
         "android.provider.flags-exported-aconfig-java",
