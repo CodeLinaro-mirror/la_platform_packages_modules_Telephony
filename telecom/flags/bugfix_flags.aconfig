@@ -67,6 +67,17 @@ flag {
   }
 }
 
+# OWNER=tgunn TARGET=26Q2
+flag {
+  name: "voip_dnd_focus"
+  namespace: "telecom"
+  description: "Ensure VoIP calls suppressed by DND don't get audio focus."
+  bug: "421990659"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+    }
+}
+
 # OWNER=pmadapurmath TARGET=26Q2
 flag {
   name: "delay_requested_handle_selection"
@@ -99,4 +110,37 @@ flag {
   metadata {
       purpose: PURPOSE_BUGFIX
     }
+}
+
+# OWNER=tjstuart TARGET=26Q2
+flag {
+  name: "register_bluetooth_receiver_for_all_users"
+  namespace: "telecom"
+  description: "Register BluetoothStateReceiver for all users to ensure Bluetooth state is tracked correctly for secondary users."
+  bug: "480821340"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
+
+# OWNER=arunrajms TARGET=26Q3
+flag {
+    name: "move_get_phone_account_outside_lock"
+    namespace: "telecom"
+    description: "Moving the canGetPhoneAccount check outside the lock to prevent ANRs"
+    bug: "451536800"
+    metadata {
+        purpose: PURPOSE_BUGFIX
+    }
+}
+
+# OWNER=breadley TARGET=26Q3
+flag {
+  name: "fix_transactional_call_sequencing_future"
+  namespace: "telecom"
+  description: "Fixes the bug in TransactionalCallSequencingAdapter where the future returned by createSetActiveTransactionSequencing is never completed."
+  bug: "458829951"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
 }
