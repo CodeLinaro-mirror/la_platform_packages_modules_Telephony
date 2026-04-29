@@ -47,9 +47,9 @@ java_library {
         "telecom-proto-enums",
         "modules-utils-build",
         "modules-utils-infra",
-        "ims-ext-common",
     ],
     static_libs: [
+        "android.app.privatecompute.flags-aconfig-java-export",
         "modules-utils-binary-xml",
         "android.multiuser.flags-aconfig-java-export",
         "android.provider.flags-exported-aconfig-java",
@@ -64,6 +64,7 @@ java_library {
         "modules-utils-shell-command-handler",
         "modules-utils-fastxmlserializer",
         "modules-utils-preconditions",
+        "ims-ext-common",
     ],
     min_sdk_version: "37",
     lint: {
