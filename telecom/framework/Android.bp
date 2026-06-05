@@ -213,3 +213,15 @@ filegroup {
     srcs: ["jarjar-rules.txt"],
     visibility: ["//packages/services/Telecomm"],
 }
+
+java_library {
+    name: "telecom-vendor-ext",
+    srcs: ["vendor_ext/**/*.java"],
+    sdk_version: "core_platform",
+    libs: [
+        "framework-telecom.impl", // link against full implementation
+        "framework", // add core Android framework
+        "framework-annotations-lib", // provides definitions for annotations
+    ],
+    visibility: ["//visibility:public"], // allows for cross-directory dependency
+}
