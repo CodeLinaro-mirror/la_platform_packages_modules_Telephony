@@ -198,3 +198,14 @@ flag {
       purpose: PURPOSE_BUGFIX
   }
 }
+
+# OWNER=pmadapurmath TARGET=26Q3
+flag {
+  name: "vt_active_focus_audio_route"
+  namespace: "telecom"
+  description: "Ensures that vt call routes are recalculated in active focus switches given that the current route wasn't due to a user request."
+  bug: "507271700"
+  metadata {
+      purpose: PURPOSE_BUGFIX
+  }
+}
