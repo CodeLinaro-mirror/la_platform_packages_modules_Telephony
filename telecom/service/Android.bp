@@ -64,7 +64,6 @@ java_library {
         "modules-utils-shell-command-handler",
         "modules-utils-fastxmlserializer",
         "modules-utils-preconditions",
-        "ims-ext-common",
     ],
     min_sdk_version: "37",
     lint: {
@@ -119,5 +118,6 @@ java_sdk_library {
         "android.telecom",
         "com.android.server.telecom",
         "com.android.internal.telecom",
+        "com.android.telecom.vendor.ext",
     ],
 }
