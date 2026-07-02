@@ -298,4 +298,29 @@ public class Ts43PhoneNumberControllerTest {
         verify(mTs43PhoneNumberRetriever, times(2)).fetchPhoneNumber(SUB_ID);
         verifySetTs43PhoneNumberIsCalled(SUB_ID, FAKE_E164_PHONE_NUMBER);
     }
+
+    @Test
+    public void testFetch_unexpectedError_releasesLock() throws ServiceEntitlementException {
+        givenTs43Enabled(true);
+        simulateNetworkState(true);
+        when(mTs43PhoneNumberRetriever.fetchPhoneNumber(SUB_ID))
+                .thenThrow(new StackOverflowError("Fake StackOverflowError"))
+                .thenReturn(FAKE_RAW_PHONE_NUMBER);
+
+        // Trigger first fetch (which throws Throwable)
+        mCarrierConfigChangeListener.onCarrierConfigChanged(0, SUB_ID, 0, 0);
+        mTestLooper.dispatchAll();
+
+        // Verify first fetch was called
+        verify(mTs43PhoneNumberRetriever, times(1)).fetchPhoneNumber(SUB_ID);
+
+        // Trigger second fetch (should NOT be skipped since queryCompleted should
+        // have cleared the state)
+        mCarrierConfigChangeListener.onCarrierConfigChanged(0, SUB_ID, 0, 0);
+        mTestLooper.dispatchAll();
+
+        // Verify second fetch was called (total 2 times)
+        verify(mTs43PhoneNumberRetriever, times(2)).fetchPhoneNumber(SUB_ID);
+        verifySetTs43PhoneNumberIsCalled(SUB_ID, FAKE_E164_PHONE_NUMBER);
+    }
 }
