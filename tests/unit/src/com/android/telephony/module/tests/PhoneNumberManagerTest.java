@@ -514,4 +514,16 @@ public class PhoneNumberManagerTest {
         // TODO(b/434607712) - Update with new value to catch null or non opaque uri
         assertEquals(ParsedPhoneNumber.ERROR_TYPE_NONE, result.getErrorCode());
     }
+
+    @Test
+    @RequiresFlagsEnabled(Flags.FLAG_PHONE_NUMBER_PARSING_API)
+    public void testParsingWithMalformedUriDoesNotThrow() {
+        ParsedPhoneNumber result =
+                mPhoneNumberManager.parsePhoneNumber(
+                    Collections.singletonList(Uri.parse("sip:@")),
+                    "US");
+
+        assertEquals(false, result.isValidPhoneNumber());
+        assertThrows(IllegalStateException.class, result::getParsedPhoneNumber);
+    }
 }
