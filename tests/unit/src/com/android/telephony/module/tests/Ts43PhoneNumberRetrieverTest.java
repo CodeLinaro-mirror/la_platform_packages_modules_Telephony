@@ -208,4 +208,30 @@ public class Ts43PhoneNumberRetrieverTest {
         // Then: The exception should be caught internally, and the method should return null.
         assertNull(phoneNumber);
     }
+
+    @Test
+    public void testFetchPhoneNumber_Failure_ThrowsThrowable() throws Exception {
+        // Given: The server URL is available.
+        mCarrierConfig.putString(CarrierConfigManager.ImsServiceEntitlement
+                .KEY_ENTITLEMENT_SERVER_URL_STRING, FAKE_SERVER_URL);
+
+        // Given: The authentication step succeeds.
+        Ts43Authentication.Ts43AuthToken mockAuthToken =
+                mock(Ts43Authentication.Ts43AuthToken.class);
+        when(mockAuthToken.token()).thenReturn(FAKE_TOKEN);
+        when(mMockTs43Auth.getAuthToken(anyInt(), any(), any(),
+                any(), anyString())).thenReturn(mockAuthToken);
+
+        // Given: The final phone number retrieval step throws a Throwable (e.g.,
+        // StackOverflowError).
+        when(mMockTs43Operation.getPhoneNumber(any(GetPhoneNumberRequest.class)))
+                .thenThrow(new StackOverflowError("Fake StackOverflowError"));
+
+        // When: Call the target method.
+        String phoneNumber = mRetriever.fetchPhoneNumber(FAKE_SUB_ID);
+
+        // Then: The Throwable should be caught internally, and the method should
+        // return null.
+        assertNull(phoneNumber);
+    }
 }
