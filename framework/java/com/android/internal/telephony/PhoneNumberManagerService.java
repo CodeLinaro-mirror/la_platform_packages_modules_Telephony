@@ -125,7 +125,7 @@ public final class PhoneNumberManagerService extends IPhoneNumber.Stub {
 
         for (Uri uri : associatedUris) {
             if (uri != null && uri.isOpaque()) {
-                String phoneNumberCandidate = uri.getSchemeSpecificPart().split("@")[0];
+                String phoneNumberCandidate = uri.getSchemeSpecificPart().split("@", 2)[0];
                 try {
                     // Converts countryIso to uppercase as required by libphonenumber.
                     PhoneNumber phoneNumber = util.parse(phoneNumberCandidate,

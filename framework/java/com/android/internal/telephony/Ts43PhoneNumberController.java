@@ -233,6 +233,10 @@ public class Ts43PhoneNumberController extends Handler {
         } catch (ServiceEntitlementException e) {
             Rlogger.e(TAG, "TS.43 fetch failed for subId " + subId + ": " + e);
             handleFetchFailure(subId, e);
+        } catch (Throwable t) {
+            Rlogger.e(TAG, "TS.43 fetch failed with unexpected error for subId "
+                    + subId + ": " + t);
+            queryCompleted(subId);
         }
     }
 
